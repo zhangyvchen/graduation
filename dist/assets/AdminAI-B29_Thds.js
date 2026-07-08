@@ -1,0 +1,18 @@
+import{_ as I,h as _,c as i,a as e,b as a,w as l,F as h,i as k,r as f,o as d,t as c,k as V,p as x,f as w}from"./index-C4QxNYYX.js";const C={class:"ai-page"},D={class:"ai-container"},b={class:"chat-body"},L={class:"message-list"},S={class:"message-avatar"},T={class:"message-content"},M={class:"message-text"},N={class:"message-time"},B={key:0,class:"loading-message"},Q={class:"chat-input"},z={class:"quick-actions"},F={class:"quick-buttons"},K={class:"ai-features"},$={class:"feature-grid"},q={__name:"AdminAI",setup(E){const v=_([{id:1,role:"ai",content:"您好！我是毕业数据报告系统的 AI 助手。我可以帮您分析毕业数据、生成统计报告、预测就业趋势等。请问有什么我可以帮助您的？",time:new Date().toLocaleTimeString()}]),n=_(""),u=_(!1),y=["2024届就业率是多少？","各专业就业分布情况","生成年度数据分析报告","预测下一届升学趋势","哪些班级就业率最高？"],m=async()=>{if(!n.value.trim())return;v.value.push({id:Date.now(),role:"user",content:n.value,time:new Date().toLocaleTimeString()});const r=n.value;n.value="",u.value=!0,await new Promise(p=>setTimeout(p,1500)),u.value=!1;const s=[`好的，关于"${r}"，我来为您分析...
+
+基于数据分析，2024届总体就业率达到95.5%，较去年提升了1.3个百分点。其中软件工程专业就业率最高，达到98.2%。建议关注计算机科学专业，该专业升学率增长明显，已达到42%。`,`根据您的问题，以下是分析结果：
+
+1. 就业率趋势：近三年持续上升，年均增长约1.5%
+2. 行业分布：互联网占比35%，金融占比25%，制造业占比20%
+3. 地域分布：一线城市占比60%，新一线城市占比25%
+
+如需详细报告，我可以为您生成完整的数据分析文档。`,`分析完成！
+
+综合来看，当前毕业生就业形势良好，但仍有以下几点值得关注：
+- 自主创业比例偏低，仅占5%
+- 部分专业存在结构性就业困难
+- 升学竞争日益激烈
+
+建议加大创业扶持力度，优化专业设置。`,`收到您的请求！
+
+根据历史数据预测，下一届毕业生就业率预计将保持在95%以上，升学率有望突破40%。主要增长点可能来自人工智能、大数据等新兴领域。`];v.value.push({id:Date.now()+1,role:"ai",content:s[Math.floor(Math.random()*s.length)],time:new Date().toLocaleTimeString()})},A=r=>{n.value=r,m()};return(r,s)=>{const p=f("el-input"),g=f("el-button"),o=f("el-card");return d(),i("div",C,[s[10]||(s[10]=e("header",{class:"content-header"},[e("h2",null,"AI 助手")],-1)),e("div",D,[a(o,{class:"ai-card"},{default:l(()=>[s[3]||(s[3]=e("div",{class:"chat-header"},[e("div",{class:"ai-avatar"},"🤖"),e("div",{class:"ai-info"},[e("h3",null,"毕业数据报告 AI 助手"),e("p",null,"基于大数据分析，为您提供智能决策支持")])],-1)),e("div",b,[e("div",L,[(d(!0),i(h,null,k(v.value,t=>(d(),i("div",{class:"message ai-message",key:t.id},[e("div",S,c(t.role==="ai"?"🤖":"👤"),1),e("div",T,[e("div",M,c(t.content),1),e("div",N,c(t.time),1)])]))),128)),u.value?(d(),i("div",B,[...s[1]||(s[1]=[e("div",{class:"loading-dots"},[e("span",{class:"dot"}),e("span",{class:"dot"}),e("span",{class:"dot"})],-1),e("span",null,"AI 正在思考中...",-1)])])):V("",!0)])]),e("div",Q,[a(p,{modelValue:n.value,"onUpdate:modelValue":s[0]||(s[0]=t=>n.value=t),placeholder:"输入您的问题，例如：2024届就业率趋势分析",onKeyup:x(m,["enter"]),size:"large"},null,8,["modelValue"]),a(g,{type:"primary",onClick:m,loading:u.value},{default:l(()=>[...s[2]||(s[2]=[w("发送",-1)])]),_:1},8,["loading"])])]),_:1}),e("div",z,[s[4]||(s[4]=e("h4",null,"快捷问题",-1)),e("div",F,[(d(),i(h,null,k(y,t=>a(g,{key:t,onClick:P=>A(t),size:"small"},{default:l(()=>[w(c(t),1)]),_:2},1032,["onClick"])),64))])])]),e("div",K,[s[9]||(s[9]=e("h4",null,"AI 能力",-1)),e("div",$,[a(o,{class:"feature-card"},{default:l(()=>[...s[5]||(s[5]=[e("div",{class:"feature-icon"},"📊",-1),e("h5",null,"数据分析",-1),e("p",null,"基于历史数据进行趋势分析和预测",-1)])]),_:1}),a(o,{class:"feature-card"},{default:l(()=>[...s[6]||(s[6]=[e("div",{class:"feature-icon"},"📈",-1),e("h5",null,"统计报告",-1),e("p",null,"自动生成数据统计和可视化报告",-1)])]),_:1}),a(o,{class:"feature-card"},{default:l(()=>[...s[7]||(s[7]=[e("div",{class:"feature-icon"},"🎯",-1),e("h5",null,"智能推荐",-1),e("p",null,"根据数据特征提供个性化建议",-1)])]),_:1}),a(o,{class:"feature-card"},{default:l(()=>[...s[8]||(s[8]=[e("div",{class:"feature-icon"},"📝",-1),e("h5",null,"文案生成",-1),e("p",null,"自动生成数据分析报告和总结",-1)])]),_:1})])])])}}},j=I(q,[["__scopeId","data-v-45a7991f"]]);export{j as default};
