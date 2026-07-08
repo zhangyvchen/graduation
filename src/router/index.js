@@ -1,30 +1,42 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuth } from '../stores/auth'
 
 const routes = [
   {
     path: '/',
-    name: 'Home',
-    component: () => import('../views/Home.vue')
-  },
-  {
-    path: '/growth',
-    name: 'Growth',
-    component: () => import('../views/GrowthTrajectory.vue')
-  },
-  {
-    path: '/destination',
-    name: 'Destination',
-    component: () => import('../views/DestinationMap.vue')
-  },
-  {
-    path: '/learning',
-    name: 'Learning',
-    component: () => import('../views/LearningProfile.vue')
-  },
-  {
-    path: '/report',
-    name: 'Report',
-    component: () => import('../views/ReportDownload.vue')
+    component: () => import('../layouts/StudentLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'Home',
+        component: () => import('../views/Home.vue')
+      },
+      {
+        path: '/growth',
+        name: 'Growth',
+        component: () => import('../views/GrowthTrajectory.vue')
+      },
+      {
+        path: '/destination',
+        name: 'Destination',
+        component: () => import('../views/DestinationMap.vue')
+      },
+      {
+        path: '/learning',
+        name: 'Learning',
+        component: () => import('../views/LearningProfile.vue')
+      },
+      {
+        path: '/report',
+        name: 'Report',
+        component: () => import('../views/ReportDownload.vue')
+      },
+      {
+        path: '/verify',
+        name: 'Verify',
+        component: () => import('../views/QRCodeVerification.vue')
+      }
+    ]
   },
   {
     path: '/admin',
@@ -32,15 +44,70 @@ const routes = [
     component: () => import('../views/AdminLogin.vue')
   },
   {
-    path: '/admin/dashboard',
-    name: 'AdminDashboard',
-    component: () => import('../views/AdminDashboard.vue')
+    path: '/admin',
+    component: () => import('../layouts/AdminLayout.vue'),
+    meta: { requiresAuth: true, role: 'admin' },
+    children: [
+      {
+        path: 'dashboard',
+        name: 'AdminDashboard',
+        component: () => import('../views/AdminDashboard.vue')
+      },
+      {
+        path: 'batch',
+        name: 'AdminBatch',
+        component: () => import('../views/AdminBatch.vue')
+      },
+      {
+        path: 'student',
+        name: 'AdminStudent',
+        component: () => import('../views/AdminStudent.vue')
+      },
+      {
+        path: 'statistics',
+        name: 'AdminStatistics',
+        component: () => import('../views/AdminStatistics.vue')
+      },
+      {
+        path: 'template',
+        name: 'AdminTemplate',
+        component: () => import('../views/AdminTemplate.vue')
+      },
+      {
+        path: 'verify',
+        name: 'AdminVerify',
+        component: () => import('../views/QRCodeVerification.vue')
+      },
+      {
+        path: 'ai',
+        name: 'AdminAI',
+        component: () => import('../views/AdminAI.vue')
+      }
+    ]
   }
 ]
 
 const router = createRouter({
   history: createWebHistory(),
   routes
+})
+
+router.beforeEach((to, from, next) => {
+  const auth = useAuth()
+  
+  if (to.meta.requiresAuth) {
+    if (!auth.state.isLoggedIn) {
+      next('/admin')
+      return
+    }
+    
+    if (to.meta.role && auth.state.role !== to.meta.role) {
+      next('/')
+      return
+    }
+  }
+  
+  next()
 })
 
 export default router

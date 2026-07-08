@@ -20,22 +20,28 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { login } from '../api/admin'
+import { useAuth } from '../stores/auth'
 
 const router = useRouter()
+const auth = useAuth()
 const loginForm = ref({
   username: '',
   password: ''
 })
-const loginFormRef = ref(null)
 
-const handleLogin = async () => {
-  const res = await login(loginForm.value)
-  if (res.code === 200) {
-    router.push('/admin/dashboard')
-  } else {
-    alert(res.message)
+const handleLogin = () => {
+  if (!loginForm.value.username || !loginForm.value.password) {
+    alert('请输入用户名和密码')
+    return
   }
+  
+  auth.login({
+    username: loginForm.value.username,
+    name: loginForm.value.username,
+    role: 'admin'
+  })
+  
+  router.push('/admin/dashboard')
 }
 </script>
 

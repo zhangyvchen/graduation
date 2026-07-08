@@ -15,6 +15,7 @@ export function getAdminList() {
   })
 }
 
+
 export function saveAdmin(data) {
   return request({
     url: '/admin',
