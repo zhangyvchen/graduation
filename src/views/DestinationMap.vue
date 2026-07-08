@@ -1,6 +1,13 @@
 <!-- src/views/DestinationMap.vue -->
 <template>
   <div class="destination-page">
+    <!-- 新增：数据故事 -->
+    <DataStory :text="storyText" @regenerate="refreshStory" />
+
+    <!-- 新增：弹幕层 -->
+    <DanmakuLayer />
+
+    <!-- 原有内容 -->
     <div class="page-header">
       <h2>🗺️ 去向地图</h2>
       <div class="filter-bar">
@@ -58,6 +65,9 @@ import { ref, onMounted, nextTick, watch } from 'vue'
 import * as echarts from 'echarts'
 import { Loading } from '@element-plus/icons-vue'
 import { getDestinationByYear } from '../api/destination'
+import DataStory from '../components/DataStory.vue'
+import DanmakuLayer from '../components/DanmakuLayer.vue'
+import { generateStory } from '../utils/storyGenerator'
 
 const years = [2024, 2023, 2022, 2021]
 const selectedYear = ref(2024)
@@ -72,6 +82,9 @@ let heatmapChart = null
 let schoolChart = null
 let industryChart = null
 const mapLoaded = ref(false)
+
+// 新增：故事文本
+const storyText = ref('')
 
 const destData = ref({
   heatmap: [],
@@ -125,14 +138,19 @@ const loadData = async () => {
     }
   } catch (e) {
     console.warn('API调用失败，使用模拟数据', e)
-    // 同上模拟数据...
   }
+  // 数据加载完成后生成故事
+  storyText.value = generateStory(destData.value, 'destination')
+}
+
+// 刷新故事
+const refreshStory = () => {
+  storyText.value = generateStory(destData.value, 'destination')
 }
 
 // ===== 加载中国地图 =====
 const loadChinaMap = async () => {
   try {
-    // 使用阿里云 DataV 的中国地图数据（无需安装）
     const response = await fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json')
     if (!response.ok) throw new Error('网络请求失败')
     const chinaMap = await response.json()
@@ -141,7 +159,7 @@ const loadChinaMap = async () => {
     console.log('✅ 中国地图加载成功')
   } catch (e) {
     console.warn('中国地图加载失败，使用备用方案', e)
-    mapLoaded.value = true // 仍然渲染，但使用简化图表
+    mapLoaded.value = true
   }
 }
 
@@ -173,7 +191,6 @@ const updateHeatmap = () => {
   const data = destData.value.heatmap
   const maxValue = Math.max(...data.map(d => d.value), 1)
 
-  // 如果地图已加载，使用中国地图
   if (mapLoaded.value && echarts.getMap('china')) {
     heatmapChart.setOption({
       tooltip: {
@@ -231,7 +248,6 @@ const updateHeatmap = () => {
       }]
     })
   } else {
-    // 备用方案：柱状图显示各省数据
     const sorted = [...data].sort((a, b) => b.value - a.value).slice(0, 15)
     heatmapChart.setOption({
       tooltip: { trigger: 'axis', formatter: '{b}<br/>就业人数：{c}人' },
@@ -308,25 +324,19 @@ const updateIndustry = () => {
 // ===== 事件处理 =====
 const onYearChange = () => {
   loadData()
-  // 延迟更新图表，等数据加载完成
   setTimeout(() => updateCharts(), 300)
 }
 const onCollegeChange = onYearChange
 
 // ===== 生命周期 =====
 onMounted(async () => {
-  // 先加载地图
   await loadChinaMap()
-  // 再加载数据
   await loadData()
-  // 最后初始化图表
   nextTick(() => {
     initCharts()
-    // 延迟渲染确保DOM准备好
     setTimeout(() => updateCharts(), 200)
   })
 
-  // 窗口resize自适应
   window.addEventListener('resize', () => {
     [heatmapChart, schoolChart, industryChart].forEach(c => c?.resize())
   })

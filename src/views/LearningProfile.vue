@@ -1,6 +1,13 @@
 <!-- src/views/LearningProfile.vue -->
 <template>
   <div class="learning-page">
+    <!-- 新增：数据故事 -->
+    <DataStory :text="storyText" @regenerate="refreshStory" />
+
+    <!-- 新增：弹幕层 -->
+    <DanmakuLayer />
+
+    <!-- 原有内容 -->
     <div class="page-header">
       <h2>📚 学习画像</h2>
       <div class="filter-bar">
@@ -92,7 +99,9 @@
 import { ref, onMounted, nextTick, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
 import { getLearningByYear } from '../api/learning'
-import { getDestinationYears } from '../api/destination'
+import DataStory from '../components/DataStory.vue'
+import DanmakuLayer from '../components/DanmakuLayer.vue'
+import { generateStory } from '../utils/storyGenerator'
 
 const years = ref([])
 const selectedYear = ref(null)
@@ -106,11 +115,14 @@ let gpaInstance = null
 let libraryInstance = null
 let labInstance = null
 
-// ========== 数据状态 ==========
-const statsData = ref({
-  gpaData: [],
-  libraryData: [],
-  labData: []
+// 新增：故事文本
+const storyText = ref('')
+
+const stats = ref({
+  averageGpa: 3.28,
+  avgBorrow: 18.5,
+  labParticipation: 32,
+  competitionCount: 156
 })
 
 // ========== 获取年份列表 ==========
@@ -129,6 +141,131 @@ const loadYears = async () => {
     if (!selectedYear.value) {
       selectedYear.value = years.value[0]
     }
+  } catch (e) {
+    // 使用模拟数据
+  }
+  // 数据加载完成后生成故事
+  storyText.value = generateStory(learningData.value, 'learning')
+  nextTick(() => updateCharts())
+}
+
+// 刷新故事
+const refreshStory = () => {
+  storyText.value = generateStory(learningData.value, 'learning')
+}
+
+const onYearChange = () => loadData()
+const onCollegeChange = () => loadData()
+
+const initCharts = () => {
+  if (gpaChartRef.value) gpaChart = echarts.init(gpaChartRef.value)
+  if (libraryChartRef.value) libraryChart = echarts.init(libraryChartRef.value)
+  if (labChartRef.value) labChart = echarts.init(labChartRef.value)
+  if (competitionChartRef.value) competitionChart = echarts.init(competitionChartRef.value)
+  updateCharts()
+}
+
+const updateCharts = () => {
+  // 1. GPA分布 - 柱状图
+  if (gpaChart) {
+    const data = learningData.value.gpa
+    gpaChart.setOption({
+      tooltip: { trigger: 'axis', formatter: '{b}<br/>人数：{c}人' },
+      grid: { left: '8%', right: '5%', bottom: '12%', top: '8%' },
+      xAxis: { type: 'category', data: data.map(d => d.range) },
+      yAxis: { type: 'value', name: '人数' },
+      series: [{
+        type: 'bar',
+        data: data.map(d => d.count),
+        itemStyle: {
+          borderRadius: [4, 4, 0, 0],
+          color: (params) => {
+            const colors = ['#f5576c', '#f093fb', '#4facfe', '#43e97b', '#667eea']
+            return colors[params.dataIndex] || '#667eea'
+          }
+        },
+        barWidth: '55%',
+        label: { show: true, position: 'top', formatter: '{c}人' }
+      }]
+    })
+    gpaChart.resize()
+  }
+
+  // 2. 图书馆借阅 - 折线图
+  if (libraryChart) {
+    const data = learningData.value.library
+    libraryChart.setOption({
+      tooltip: { trigger: 'axis', formatter: '{b}<br/>人均借阅：{c}本' },
+      grid: { left: '8%', right: '5%', bottom: '12%', top: '8%' },
+      xAxis: { type: 'category', data: data.map(d => d.grade) },
+      yAxis: { type: 'value', name: '人均借阅(本)' },
+      series: [{
+        type: 'line',
+        data: data.map(d => d.count),
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 10,
+        lineStyle: { width: 3, color: '#667eea' },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(102, 126, 234, 0.3)' },
+            { offset: 1, color: 'rgba(102, 126, 234, 0.02)' }
+          ])
+        },
+        itemStyle: { color: '#667eea' },
+        label: { show: true, formatter: '{c}本' }
+      }]
+    })
+    libraryChart.resize()
+  }
+
+  // 3. 实验室参与 - 横向条形图
+  if (labChart) {
+    const data = learningData.value.lab
+    const sorted = [...data].sort((a, b) => b.rate - a.rate)
+    labChart.setOption({
+      tooltip: { trigger: 'axis', formatter: '{b}<br/>参与率：{c}%' },
+      grid: { left: '20%', right: '8%', bottom: '8%', top: '8%' },
+      xAxis: { type: 'value', max: 70, name: '参与率(%)' },
+      yAxis: { type: 'category', data: sorted.map(d => d.college) },
+      series: [{
+        type: 'bar',
+        data: sorted.map(d => d.rate),
+        itemStyle: {
+          borderRadius: [0, 4, 4, 0],
+          color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+            { offset: 0, color: '#43e97b' },
+            { offset: 1, color: '#4facfe' }
+          ])
+        },
+        barWidth: '50%',
+        label: { show: true, position: 'right', formatter: '{c}%' }
+      }]
+    })
+    labChart.resize()
+  }
+
+  // 4. 竞赛获奖 - 饼图
+  if (competitionChart) {
+    const d = learningData.value.competition
+    competitionChart.setOption({
+      tooltip: { trigger: 'item', formatter: '{b}: {c}项 ({d}%)' },
+      legend: { orient: 'vertical', right: '5%', top: 'center' },
+      series: [{
+        type: 'pie',
+        radius: ['40%', '70%'],
+        avoidLabelOverlap: false,
+        itemStyle: { borderRadius: 8 },
+        label: { formatter: '{b}\n{c}项', fontSize: 12 },
+        data: [
+          { value: d.international, name: '国际级', itemStyle: { color: '#e74c3c' } },
+          { value: d.national, name: '国家级', itemStyle: { color: '#f39c12' } },
+          { value: d.provincial, name: '省级', itemStyle: { color: '#3498db' } },
+          { value: d.school, name: '校级', itemStyle: { color: '#2ecc71' } }
+        ]
+      }]
+    })
+    competitionChart.resize()
   }
 }
 
