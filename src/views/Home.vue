@@ -35,130 +35,139 @@
         </div>
       </el-card>
     </div>
+
+    <el-row :gutter="20" style="margin-top: 24px;">
+      <el-col :span="12">
+        <el-card>
+          <template #header>就业/升学比例</template>
+          <div ref="pieChartRef" style="height: 320px;"></div>
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card>
+          <template #header>历年趋势</template>
+          <div ref="trendChartRef" style="height: 320px;"></div>
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
 import { getOverview } from '../api/graduationData'
-import { getDestinationYears } from '../api/destination'
-
-const years = ref([])
-const selectedYear = ref(null)
-const loading = ref(false)
+import * as echarts from 'echarts'
+import { ref, onMounted, watch, nextTick } from 'vue'
 
 const overview = ref({
   totalGraduates: 0,
   employmentRate: 0,
   enrollmentRate: 0
 })
+const pieChartRef = ref(null)
+const trendChartRef = ref(null)
+let pieChart = null
+let trendChart = null
+const allYearData = ref([])
 
-// ========== 获取年份列表 ==========
-const loadYears = async () => {
-  try {
-    const res = await getDestinationYears()
-    if (res.code === 200 && res.data) {
-      years.value = res.data
-      if (years.value.length > 0 && !selectedYear.value) {
-        selectedYear.value = years.value[0]
-      }
-    }
-  } catch (error) {
-    console.error('获取年份列表失败:', error)
-    years.value = [2024, 2023, 2022, 2021]
-    if (!selectedYear.value) {
-      selectedYear.value = years.value[0]
-    }
-  }
-}
-
-// ========== 加载概览数据 ==========
-const loadOverview = async () => {
-  if (!selectedYear.value) return
-
-  try {
-    const res = await getOverview(selectedYear.value)
-    if (res.code === 200 && res.data) {
-      overview.value = res.data
-    }
-  } catch (error) {
-    console.error('获取概览数据失败:', error)
-  }
-}
-
-// ========== 刷新数据 ==========
-const refreshData = async () => {
-  if (loading.value) return
-  loading.value = true
-  try {
-    await loadOverview()
-  } finally {
-    loading.value = false
-  }
-}
-
-const onYearChange = () => {
-  refreshData()
-}
-
-// ========== 生命周期 ==========
 onMounted(async () => {
-  await loadYears()
-  await refreshData()
+  await loadOverview()
+  await loadAllYears()
+  nextTick(() => initCharts())
 })
+
+const loadOverview = async () => {
+  const res = await getOverview(selectedYear.value)
+  if (res.code === 200 && res.data) {
+    overview.value = res.data
+  }
+}
+
+const loadAllYears = async () => {
+  const data = []
+  for (const year of years) {
+    const res = await getOverview(year)
+    if (res.code === 200 && res.data) data.push(res.data)
+  }
+  allYearData.value = data
+}
+
+watch(selectedYear, async () => {
+  await loadOverview()
+  updatePieChart()
+})
+
+const initCharts = () => {
+  if (pieChartRef.value) {
+    pieChart = echarts.init(pieChartRef.value)
+    updatePieChart()
+  }
+  if (trendChartRef.value) {
+    trendChart = echarts.init(trendChartRef.value)
+    updateTrendChart()
+  }
+}
+
+const updatePieChart = () => {
+  if (!pieChart) return
+  pieChart.setOption({
+    tooltip: { trigger: 'item' },
+    series: [{
+      type: 'pie', radius: ['45%', '70%'],
+      data: [
+        { value: overview.value.employmentRate || 0, name: '就业率' },
+        { value: overview.value.enrollmentRate || 0, name: '升学率' },
+        { value: Math.max(0, 100 - (overview.value.employmentRate||0) - (overview.value.enrollmentRate||0)), name: '其他' }
+      ],
+      label: { formatter: '{b}: {c}%' }
+    }]
+  })
+}
+
+const updateTrendChart = () => {
+  if (!trendChart || allYearData.value.length === 0) return
+  trendChart.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['就业率', '升学率', '毕业生数(十人)'] },
+    xAxis: { type: 'category', data: allYearData.value.map(d => d.year + '届') },
+    yAxis: { type: 'value', max: 100 },
+    series: [
+      { name: '就业率', type: 'line', data: allYearData.value.map(d => d.employmentRate||0), smooth: true },
+      { name: '升学率', type: 'line', data: allYearData.value.map(d => d.enrollmentRate||0), smooth: true },
+      { name: '毕业生数(十人)', type: 'bar', data: allYearData.value.map(d => (d.totalGraduates||0)/10) }
+    ]
+  })
+}
 </script>
 
 <style scoped>
 .home-page {
   padding: 0;
 }
-
 .year-selector {
-  margin-bottom: 30px;
-  display: flex;
-  align-items: center;
+  margin-bottom: 24px;
 }
-
+.year-selector :deep(.el-select) {
+  width: 200px;
+}
 .overview-cards {
-  display: flex;
-  gap: 30px;
-  justify-content: center;
+  display: flex; gap: 24px;
 }
-
 .stat-card {
-  width: 250px;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 12px;
-  padding: 20px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  flex: 1; background: rgba(255,255,255,0.95);
+  border-radius: 12px; padding: 20px;
+  display: flex; align-items: center; gap: 20px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
 }
-
 .stat-icon {
   font-size: 48px;
 }
-
 .stat-value {
   font-size: 32px;
   font-weight: bold;
   color: #667eea;
 }
-
 .stat-label {
   font-size: 14px;
   color: #999;
-}
-
-@media (max-width: 768px) {
-  .overview-cards {
-    flex-direction: column;
-    align-items: center;
-  }
-  .stat-card {
-    width: 100%;
-    max-width: 300px;
-  }
 }
 </style>

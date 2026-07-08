@@ -1,28 +1,81 @@
 <!-- src/views/LearningProfile.vue -->
 <template>
   <div class="learning-page">
-    <div class="year-selector">
-      <el-select v-model="selectedYear" placeholder="选择年份" @change="onYearChange">
-        <el-option v-for="year in years" :key="year" :label="year + '届'" :value="year" />
-      </el-select>
-      <el-button type="primary" @click="refreshData" :loading="loading" style="margin-left: 12px;">
-        刷新数据
-      </el-button>
+    <div class="page-header">
+      <h2>📚 学习画像</h2>
+      <div class="filter-bar">
+        <el-select v-model="selectedYear" placeholder="选择年份" @change="onYearChange">
+          <el-option v-for="year in years" :key="year" :label="year + '届'" :value="year" />
+        </el-select>
+        <el-select v-model="selectedCollege" placeholder="选择学院" clearable @change="onCollegeChange">
+          <el-option label="全部学院" value="" />
+          <el-option v-for="college in colleges" :key="college" :label="college" :value="college" />
+        </el-select>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <el-card class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-info">
+          <div class="stat-value">{{ stats.averageGpa || 3.28 }}</div>
+          <div class="stat-label">平均绩点</div>
+        </div>
+      </el-card>
+      <el-card class="stat-card">
+        <div class="stat-icon">📖</div>
+        <div class="stat-info">
+          <div class="stat-value">{{ stats.avgBorrow || 18.5 }}</div>
+          <div class="stat-label">人均借阅(本)</div>
+        </div>
+      </el-card>
+      <el-card class="stat-card">
+        <div class="stat-icon">🔬</div>
+        <div class="stat-info">
+          <div class="stat-value">{{ stats.labParticipation || 32 }}%</div>
+          <div class="stat-label">实验室参与率</div>
+        </div>
+      </el-card>
+      <el-card class="stat-card">
+        <div class="stat-icon">🏅</div>
+        <div class="stat-info">
+          <div class="stat-value">{{ stats.competitionCount || 156 }}</div>
+          <div class="stat-label">竞赛获奖总数</div>
+        </div>
+      </el-card>
     </div>
 
     <div class="charts-grid">
       <el-card class="chart-card" :loading="loading">
         <template #header>
-          <span>平均绩点分布</span>
+          <span>📊 平均绩点分布</span>
+          <el-tag size="small" type="info">GPA区间</el-tag>
         </template>
-        <div ref="gpaChart" class="chart"></div>
+        <div ref="gpaChartRef" class="chart"></div>
       </el-card>
 
       <el-card class="chart-card" :loading="loading">
         <template #header>
-          <span>图书馆借阅统计</span>
+          <span>📖 图书馆借阅统计</span>
+          <el-tag size="small" type="info">各年级对比</el-tag>
         </template>
-        <div ref="libraryChart" class="chart"></div>
+        <div ref="libraryChartRef" class="chart"></div>
+      </el-card>
+
+      <el-card class="chart-card">
+        <template #header>
+          <span>🔬 实验室参与情况</span>
+          <el-tag size="small" type="info">各学院对比</el-tag>
+        </template>
+        <div ref="labChartRef" class="chart"></div>
+      </el-card>
+
+      <el-card class="chart-card">
+        <template #header>
+          <span>🏅 竞赛获奖分布</span>
+          <el-tag size="small" type="info">按级别</el-tag>
+        </template>
+        <div ref="competitionChartRef" class="chart"></div>
       </el-card>
 
       <el-card class="chart-card" :loading="loading">
@@ -288,34 +341,25 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.learning-page {
-  padding: 0;
-}
+.learning-page { padding: 0; }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.page-header h2 { color: #333; margin: 0; }
+.filter-bar { display: flex; gap: 12px; }
 
-.year-selector {
-  margin-bottom: 30px;
-  display: flex;
-  align-items: center;
-}
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px; }
+.stat-card { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+.stat-icon { font-size: 36px; }
+.stat-value { font-size: 28px; font-weight: bold; color: #667eea; }
+.stat-label { font-size: 13px; color: #999; }
 
-.charts-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 30px;
-}
+.charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+.chart-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+.chart-card :deep(.el-card__header) { display: flex; justify-content: space-between; align-items: center; border-bottom: none; padding-bottom: 0; }
+.chart { height: 300px; width: 100%; }
 
-.chart-card {
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 12px;
+@media (max-width: 1024px) {
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .charts-grid { grid-template-columns: 1fr; }
 }
-
-.chart {
-  height: 300px;
-}
-
-@media (max-width: 992px) {
-  .charts-grid {
-    grid-template-columns: 1fr;
-  }
-}
+@media (max-width: 600px) { .stats-row { grid-template-columns: 1fr; } }
 </style>
