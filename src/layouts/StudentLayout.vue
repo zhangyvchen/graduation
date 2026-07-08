@@ -28,6 +28,9 @@
         <router-link to="/verify" class="nav-link" :class="{ active: $route.path === '/verify' }">
           <span>✅</span> 扫码核销
         </router-link>
+        <router-link to="/ending" class="nav-link" :class="{ active: $route.path === '/ending' }">
+          <span>💬</span> 毕业纪念
+        </router-link>
       </nav>
 
       <div class="header-right">
