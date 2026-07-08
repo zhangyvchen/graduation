@@ -16,7 +16,7 @@
       </div>
       <div v-else class="auth-btns">
         <router-link to="/login" class="login-btn">学生登录</router-link>
-        <router-link to="/admin" class="admin-btn">管理后台</router-link>
+        <router-link to="/admin/login" class="admin-btn">管理后台</router-link>
       </div>
     </header>
     <main class="main-content">
