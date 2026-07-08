@@ -1,32 +1,36 @@
+<!-- src/views/Home.vue -->
 <template>
   <div class="home-page">
     <div class="year-selector">
-      <el-select v-model="selectedYear" placeholder="选择年份">
+      <el-select v-model="selectedYear" placeholder="选择年份" @change="onYearChange">
         <el-option v-for="year in years" :key="year" :label="year + '届'" :value="year" />
       </el-select>
+      <el-button type="primary" @click="refreshData" :loading="loading" style="margin-left: 12px;">
+        刷新数据
+      </el-button>
     </div>
-    
+
     <div class="overview-cards">
-      <el-card class="stat-card">
+      <el-card class="stat-card" :loading="loading">
         <div class="stat-icon">👥</div>
         <div class="stat-info">
-          <div class="stat-value">{{ overview.totalGraduates }}</div>
+          <div class="stat-value">{{ overview.totalGraduates || 0 }}</div>
           <div class="stat-label">总毕业生数</div>
         </div>
       </el-card>
-      
-      <el-card class="stat-card">
+
+      <el-card class="stat-card" :loading="loading">
         <div class="stat-icon">💼</div>
         <div class="stat-info">
-          <div class="stat-value">{{ overview.employmentRate }}%</div>
+          <div class="stat-value">{{ overview.employmentRate || 0 }}%</div>
           <div class="stat-label">就业率</div>
         </div>
       </el-card>
-      
-      <el-card class="stat-card">
+
+      <el-card class="stat-card" :loading="loading">
         <div class="stat-icon">📚</div>
         <div class="stat-info">
-          <div class="stat-value">{{ overview.enrollmentRate }}%</div>
+          <div class="stat-value">{{ overview.enrollmentRate || 0 }}%</div>
           <div class="stat-label">升学率</div>
         </div>
       </el-card>
@@ -37,25 +41,71 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { getOverview } from '../api/graduationData'
+import { getDestinationYears } from '../api/destination'
 
-const years = [2024, 2023, 2022, 2021]
-const selectedYear = ref(2024)
+const years = ref([])
+const selectedYear = ref(null)
+const loading = ref(false)
+
 const overview = ref({
   totalGraduates: 0,
   employmentRate: 0,
   enrollmentRate: 0
 })
 
-onMounted(() => {
-  loadOverview()
-})
-
-const loadOverview = async () => {
-  const res = await getOverview(selectedYear.value)
-  if (res.code === 200 && res.data) {
-    overview.value = res.data
+// ========== 获取年份列表 ==========
+const loadYears = async () => {
+  try {
+    const res = await getDestinationYears()
+    if (res.code === 200 && res.data) {
+      years.value = res.data
+      if (years.value.length > 0 && !selectedYear.value) {
+        selectedYear.value = years.value[0]
+      }
+    }
+  } catch (error) {
+    console.error('获取年份列表失败:', error)
+    years.value = [2024, 2023, 2022, 2021]
+    if (!selectedYear.value) {
+      selectedYear.value = years.value[0]
+    }
   }
 }
+
+// ========== 加载概览数据 ==========
+const loadOverview = async () => {
+  if (!selectedYear.value) return
+
+  try {
+    const res = await getOverview(selectedYear.value)
+    if (res.code === 200 && res.data) {
+      overview.value = res.data
+    }
+  } catch (error) {
+    console.error('获取概览数据失败:', error)
+  }
+}
+
+// ========== 刷新数据 ==========
+const refreshData = async () => {
+  if (loading.value) return
+  loading.value = true
+  try {
+    await loadOverview()
+  } finally {
+    loading.value = false
+  }
+}
+
+const onYearChange = () => {
+  refreshData()
+}
+
+// ========== 生命周期 ==========
+onMounted(async () => {
+  await loadYears()
+  await refreshData()
+})
 </script>
 
 <style scoped>
@@ -65,10 +115,8 @@ const loadOverview = async () => {
 
 .year-selector {
   margin-bottom: 30px;
-}
-
-.year-selector :deep(.el-select) {
-  width: 200px;
+  display: flex;
+  align-items: center;
 }
 
 .overview-cards {
@@ -101,5 +149,16 @@ const loadOverview = async () => {
 .stat-label {
   font-size: 14px;
   color: #999;
+}
+
+@media (max-width: 768px) {
+  .overview-cards {
+    flex-direction: column;
+    align-items: center;
+  }
+  .stat-card {
+    width: 100%;
+    max-width: 300px;
+  }
 }
 </style>
