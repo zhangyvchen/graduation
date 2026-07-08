@@ -21,9 +21,10 @@
             </el-select>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="generateReport" :loading="loading">生成报告</el-button>
-            <el-button @click="downloadReport" :disabled="!reportGenerated" :loading="downloading">下载报告</el-button>
-          </el-form-item>
+           <el-button type="primary" @click="generateReport" :loading="loading">生成报告</el-button>
+           <el-button @click="downloadReport" :disabled="!reportGenerated" :loading="downloading">下载报告</el-button>
+          <el-button @click="printReport" :disabled="!reportGenerated" type="warning">打印报告</el-button>
+         </el-form-item>
         </el-form>
       </el-card>
       
@@ -133,10 +134,16 @@
 </template>
 
 <script setup>
+
 import { ref, computed, onMounted } from 'vue'
+import { getStudentByStudentId } from '../api/student'
+import { getGrowthByStudentId } from '../api/growth'
+import { getLearningByStudentId } from '../api/learning'
+import { getDestinationByStudentId } from '../api/destination'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
+
 
 const reportForm = ref({
   studentId: '',
@@ -184,31 +191,38 @@ const generateReport = async () => {
   }
   
   loading.value = true
-  await new Promise(resolve => setTimeout(resolve, 1500))
-  
-  reportData.value = {
-    studentId: reportForm.value.studentId,
-    name: reportForm.value.name,
-    className: '软件工程2001班',
-    major: '软件工程',
-    enrollYear: 2020,
-    graduationYear: 2024,
-    gpa: '3.85',
-    rank: '专业前10%',
-    awards: '5',
-    employmentStatus: '已就业',
-    company: '字节跳动',
-    position: '前端工程师',
-    salary: '25K/月',
-    growth: [
-      { year: '2020年', description: '入学，加入学院学生会' },
-      { year: '2021年', description: '获得国家奖学金' },
-      { year: '2022年', description: '参加ACM竞赛获得省级二等奖' },
-      { year: '2023年', description: '在腾讯实习，获得转正offer' },
-      { year: '2024年', description: '毕业，入职字节跳动' }
-    ]
+  try {
+    const studentRes = await getStudentByStudentId(reportForm.value.studentId)
+    const student = studentRes.code === 200 ? studentRes.data : null
+    const growthRes = await getGrowthByStudentId(reportForm.value.studentId)
+    const growthList = growthRes.code === 200 ? growthRes.data : []
+    const learnRes = await getLearningByStudentId(reportForm.value.studentId)
+    const learnData = learnRes.code === 200 ? learnRes.data : []
+    const destRes = await getDestinationByStudentId(reportForm.value.studentId)
+    const destData = destRes.code === 200 ? destRes.data : []
+
+    reportData.value = {
+      studentId: reportForm.value.studentId,
+      name: student?.name || reportForm.value.name,
+      className: student?.className || '未知班级',
+      major: student?.major || '未知专业',
+      enrollYear: student?.graduationYear ? student.graduationYear - 4 : 2020,
+      graduationYear: student?.graduationYear || 2024,
+      gpa: learnData[0]?.averageGpa ? learnData[0].averageGpa.toFixed(2) : '暂无',
+      rank: learnData.length > 0 ? '有学习记录' : '暂无',
+      awards: learnData.filter(d => d.competitionAward).length + '项',
+      employmentStatus: destData.length > 0 ? '已就业/升学' : '待确认',
+      company: destData[0]?.companyName || '暂无',
+      position: destData[0]?.jobTitle || '暂无',
+      salary: '待确认',
+      growth: growthList.map(g => ({
+        year: g.year + '年',
+        description: [g.honorName, g.scholarshipType, g.studentCadrePosition, g.partyStatus].filter(Boolean).join('，') || '有成长记录'
+      }))
+    }
+  } catch (e) {
+    reportData.value = { ...reportData.value, name: reportForm.value.name }
   }
-  
   reportGenerated.value = true
   loading.value = false
 }
@@ -253,6 +267,10 @@ ${reportData.value.growth.map(g => `${g.year}：${g.description}`).join('\n')}
   URL.revokeObjectURL(url)
   
   downloading.value = false
+}
+
+const printReport = () => {
+  window.print()
 }
 </script>
 
