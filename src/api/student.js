@@ -1,5 +1,13 @@
 import request from './request'
 
+export function login(data) {
+  return request({
+    url: '/student/login',
+    method: 'post',
+    data
+  })
+}
+
 export function getStudentList(params) {
   return request({
     url: '/student',
