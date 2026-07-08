@@ -1,3 +1,4 @@
+<!-- src/views/DestinationMap.vue -->
 <template>
   <div class="destination-page">
     <div class="page-header">
@@ -14,7 +15,7 @@
     </div>
 
     <div class="charts-grid">
-      <el-card class="chart-card full-width">
+      <el-card class="chart-card full-width" :loading="loading">
         <template #header>
           <span>📍 就业省份热力图</span>
           <el-tag size="small" type="info">颜色越深 = 人数越多</el-tag>
@@ -40,6 +41,13 @@
           <el-tag size="small" type="info">就业行业占比</el-tag>
         </template>
         <div ref="industryChartRef" class="chart"></div>
+      </el-card>
+
+      <el-card class="chart-card" :loading="loading">
+        <template #header>
+          <span>历年趋势</span>
+        </template>
+        <div ref="trendChart" class="chart"></div>
       </el-card>
     </div>
   </div>
