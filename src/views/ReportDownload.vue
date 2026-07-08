@@ -134,11 +134,16 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+
+import { ref, computed, onMounted } from 'vue'
 import { getStudentByStudentId } from '../api/student'
 import { getGrowthByStudentId } from '../api/growth'
 import { getLearningByStudentId } from '../api/learning'
 import { getDestinationByStudentId } from '../api/destination'
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+
 
 const reportForm = ref({
   studentId: '',
@@ -148,6 +153,14 @@ const reportForm = ref({
 const reportGenerated = ref(false)
 const loading = ref(false)
 const downloading = ref(false)
+
+onMounted(() => {
+  if (route.query.studentId && route.query.name) {
+    reportForm.value.studentId = route.query.studentId
+    reportForm.value.name = route.query.name
+    generateReport()
+  }
+})
 
 const reportTypeLabel = computed(() => {
   const types = { full: '完整版', simple: '精简版', employment: '就业分析版' }
