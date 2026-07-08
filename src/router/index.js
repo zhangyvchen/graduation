@@ -34,9 +34,15 @@ const routes = [
       {
         path: '/verify',
         name: 'Verify',
-        component: () => import('../views/QRCodeVerification.vue')
+        component: () => import('../views/QRCodeVerification.vue'),
+        meta: { requiresAuth: true, role: 'student' }
       }
     ]
+  },
+  {
+    path: '/login',
+    name: 'StudentLogin',
+    component: () => import('../views/StudentLogin.vue')
   },
   {
     path: '/admin',
@@ -97,12 +103,34 @@ router.beforeEach((to, from, next) => {
   
   if (to.meta.requiresAuth) {
     if (!auth.state.isLoggedIn) {
-      next('/admin')
+      if (to.meta.role === 'admin') {
+        next('/admin')
+      } else {
+        next('/login')
+      }
       return
     }
     
     if (to.meta.role && auth.state.role !== to.meta.role) {
-      next('/')
+      if (auth.state.role === 'admin') {
+        next('/admin/dashboard')
+      } else {
+        next('/')
+      }
+      return
+    }
+  }
+  
+  if (auth.state.isLoggedIn && auth.state.role === 'student') {
+    if (to.path === '/login') {
+      next('/verify')
+      return
+    }
+  }
+  
+  if (auth.state.isLoggedIn && auth.state.role === 'admin') {
+    if (to.path === '/admin' && !to.query.redirect) {
+      next('/admin/dashboard')
       return
     }
   }
