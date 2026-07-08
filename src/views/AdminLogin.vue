@@ -1,16 +1,20 @@
 <template>
   <div class="login-container">
     <div class="login-box">
-      <h2>管理后台登录</h2>
-      <el-form :model="loginForm" ref="loginFormRef" label-width="80px">
+      <div class="login-header">
+        <div class="login-icon">🔒</div>
+        <h2>管理后台登录</h2>
+        <p class="login-subtitle">请使用管理员账号登录系统</p>
+      </div>
+      <el-form :model="loginForm" ref="loginFormRef" label-width="80px" class="login-form">
         <el-form-item label="用户名">
-          <el-input v-model="loginForm.username" placeholder="请输入用户名" />
+          <el-input v-model="loginForm.username" placeholder="请输入用户名" @keyup.enter="handleLogin" />
         </el-form-item>
         <el-form-item label="密码">
-          <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" />
+          <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" @keyup.enter="handleLogin" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleLogin" style="width: 100%">登录</el-button>
+          <el-button type="primary" @click="handleLogin" style="width: 100%" :loading="isLoading">登录</el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -28,6 +32,7 @@ const loginForm = ref({
   username: '',
   password: ''
 })
+const isLoading = ref(false)
 
 const handleLogin = () => {
   if (!loginForm.value.username || !loginForm.value.password) {
@@ -35,13 +40,17 @@ const handleLogin = () => {
     return
   }
   
-  auth.login({
-    username: loginForm.value.username,
-    name: loginForm.value.username,
-    role: 'admin'
-  })
+  isLoading.value = true
   
-  router.push('/admin/dashboard')
+  setTimeout(() => {
+    auth.login({
+      username: loginForm.value.username,
+      name: loginForm.value.username,
+      role: 'admin'
+    })
+    
+    router.push('/admin/dashboard')
+  }, 500)
 }
 </script>
 
@@ -57,14 +66,48 @@ const handleLogin = () => {
 .login-box {
   width: 400px;
   background: #fff;
-  padding: 40px;
-  border-radius: 12px;
+  padding: 45px;
+  border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 }
 
-.login-box h2 {
+.login-header {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 35px;
+}
+
+.login-icon {
+  font-size: 48px;
+  margin-bottom: 15px;
+}
+
+.login-header h2 {
+  margin: 0 0 8px 0;
   color: #333;
+  font-size: 24px;
+}
+
+.login-subtitle {
+  color: #999;
+  font-size: 14px;
+  margin: 0;
+}
+
+.login-form {
+  margin-bottom: 20px;
+}
+
+.login-form :deep(.el-form-item) {
+  margin-bottom: 20px;
+}
+
+.login-form :deep(.el-input__wrapper) {
+  border-radius: 8px;
+}
+
+.login-form :deep(.el-button) {
+  height: 44px;
+  font-size: 16px;
+  border-radius: 8px;
 }
 </style>

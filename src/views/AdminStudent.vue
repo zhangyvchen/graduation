@@ -38,8 +38,9 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180">
+      <el-table-column label="操作" width="260">
         <template #default="scope">
+          <el-button size="small" type="primary" @click="handleViewReport(scope.row)">查看报告</el-button>
           <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
           <el-button size="small" type="danger" @click="handleDelete(scope.row.id)">删除</el-button>
         </template>
@@ -129,7 +130,10 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { UploadFilled, Warning } from '@element-plus/icons-vue'
+
+const router = useRouter()
 
 const batches = [2024, 2023, 2022, 2021]
 
@@ -197,6 +201,16 @@ const handleAdd = () => {
     employmentStatus: ''
   }
   dialogVisible.value = true
+}
+
+const handleViewReport = (row) => {
+  router.push({
+    path: '/admin/report',
+    query: {
+      studentId: row.studentId,
+      name: row.name
+    }
+  })
 }
 
 const handleEdit = (row) => {
