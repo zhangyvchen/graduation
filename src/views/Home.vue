@@ -1,36 +1,32 @@
-<!-- src/views/Home.vue -->
 <template>
   <div class="home-page">
     <div class="year-selector">
-      <el-select v-model="selectedYear" placeholder="选择年份" @change="onYearChange">
+      <el-select v-model="selectedYear" placeholder="选择年份">
         <el-option v-for="year in years" :key="year" :label="year + '届'" :value="year" />
       </el-select>
-      <el-button type="primary" @click="refreshData" :loading="loading" style="margin-left: 12px;">
-        刷新数据
-      </el-button>
     </div>
-
+    
     <div class="overview-cards">
-      <el-card class="stat-card" :loading="loading">
+      <el-card class="stat-card">
         <div class="stat-icon">👥</div>
         <div class="stat-info">
-          <div class="stat-value">{{ overview.totalGraduates || 0 }}</div>
+          <div class="stat-value">{{ overview.totalGraduates }}</div>
           <div class="stat-label">总毕业生数</div>
         </div>
       </el-card>
-
-      <el-card class="stat-card" :loading="loading">
+      
+      <el-card class="stat-card">
         <div class="stat-icon">💼</div>
         <div class="stat-info">
-          <div class="stat-value">{{ overview.employmentRate || 0 }}%</div>
+          <div class="stat-value">{{ overview.employmentRate }}%</div>
           <div class="stat-label">就业率</div>
         </div>
       </el-card>
-
-      <el-card class="stat-card" :loading="loading">
+      
+      <el-card class="stat-card">
         <div class="stat-icon">📚</div>
         <div class="stat-info">
-          <div class="stat-value">{{ overview.enrollmentRate || 0 }}%</div>
+          <div class="stat-value">{{ overview.enrollmentRate }}%</div>
           <div class="stat-label">升学率</div>
         </div>
       </el-card>
@@ -58,6 +54,8 @@ import { getOverview } from '../api/graduationData'
 import * as echarts from 'echarts'
 import { ref, onMounted, watch, nextTick } from 'vue'
 
+const years = [2024, 2023, 2022, 2021]
+const selectedYear = ref(2024)
 const overview = ref({
   totalGraduates: 0,
   employmentRate: 0,

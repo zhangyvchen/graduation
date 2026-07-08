@@ -49,14 +49,6 @@
           </template>
           核销管理
         </el-menu-item>
-
-        <el-menu-item index="/admin/import">
-          <template #icon>
-            <span class="menu-icon">📥</span>
-          </template>
-          数据导入
-        </el-menu-item>
-
       </el-menu>
       <div class="sidebar-footer">
         <div class="user-info" v-if="auth.state.user">
