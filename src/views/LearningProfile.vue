@@ -1,5 +1,12 @@
 <template>
   <div class="learning-page">
+    <!-- 新增：数据故事 -->
+    <DataStory :text="storyText" @regenerate="refreshStory" />
+
+    <!-- 新增：弹幕层 -->
+    <DanmakuLayer />
+
+    <!-- 原有内容 -->
     <div class="page-header">
       <h2>📚 学习画像</h2>
       <div class="filter-bar">
@@ -84,6 +91,9 @@
 import { ref, onMounted, nextTick, watch } from 'vue'
 import * as echarts from 'echarts'
 import { getLearningByYear } from '../api/learning'
+import DataStory from '../components/DataStory.vue'
+import DanmakuLayer from '../components/DanmakuLayer.vue'
+import { generateStory } from '../utils/storyGenerator'
 
 const years = [2024, 2023, 2022, 2021]
 const selectedYear = ref(2024)
@@ -99,6 +109,9 @@ let gpaChart = null
 let libraryChart = null
 let labChart = null
 let competitionChart = null
+
+// 新增：故事文本
+const storyText = ref('')
 
 const stats = ref({
   averageGpa: 3.28,
@@ -148,7 +161,14 @@ const loadData = async () => {
   } catch (e) {
     // 使用模拟数据
   }
+  // 数据加载完成后生成故事
+  storyText.value = generateStory(learningData.value, 'learning')
   nextTick(() => updateCharts())
+}
+
+// 刷新故事
+const refreshStory = () => {
+  storyText.value = generateStory(learningData.value, 'learning')
 }
 
 const onYearChange = () => loadData()

@@ -1,5 +1,12 @@
 <template>
   <div class="growth-page">
+    <!-- 新增：数据故事 -->
+    <DataStory :text="storyText" @regenerate="refreshStory" />
+
+    <!-- 新增：弹幕层 -->
+    <DanmakuLayer />
+
+    <!-- 原有内容 -->
     <div class="page-header">
       <h2>📈 成长轨迹</h2>
       <div class="filter-bar">
@@ -53,6 +60,9 @@
 import { ref, onMounted, watch, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { getGrowthByYear } from '../api/growth'
+import DataStory from '../components/DataStory.vue'
+import DanmakuLayer from '../components/DanmakuLayer.vue'
+import { generateStory } from '../utils/storyGenerator'
 
 const years = [2024, 2023, 2022, 2021]
 const selectedYear = ref(2024)
@@ -68,6 +78,9 @@ let honorChart = null
 let scholarshipChart = null
 let cadreChart = null
 let partyChart = null
+
+// 新增：故事文本
+const storyText = ref('')
 
 const growthData = ref({
   honor: { national: 0, provincial: 0, school: 0, college: 0 },
@@ -111,7 +124,14 @@ const loadData = async () => {
       party: { partyMember: 180, probationary: 95, activist: 210, mass: 715 }
     }
   }
+  // 数据加载完成后生成故事
+  storyText.value = generateStory(growthData.value, 'growth')
   nextTick(() => updateCharts())
+}
+
+// 刷新故事
+const refreshStory = () => {
+  storyText.value = generateStory(growthData.value, 'growth')
 }
 
 const onYearChange = () => loadData()
@@ -176,7 +196,6 @@ const updateCharts = () => {
   // 3. 学生干部任职 - 饼图
   if (cadreChart) {
     const d = growthData.value.cadre
-    const total = d.president + d.minister + d.monitor + d.secretary
     cadreChart.setOption({
       tooltip: { trigger: 'item', formatter: '{b}: {c}人 ({d}%)' },
       legend: { orient: 'vertical', right: '5%', top: 'center' },
@@ -200,7 +219,6 @@ const updateCharts = () => {
   // 4. 入党情况 - 饼图
   if (partyChart) {
     const d = growthData.value.party
-    const total = d.partyMember + d.probationary + d.activist + d.mass
     partyChart.setOption({
       tooltip: { trigger: 'item', formatter: '{b}: {c}人 ({d}%)' },
       legend: { orient: 'vertical', right: '5%', top: 'center' },

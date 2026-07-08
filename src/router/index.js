@@ -36,6 +36,11 @@ const routes = [
         name: 'Verify',
         component: () => import('../views/QRCodeVerification.vue'),
         meta: { requiresAuth: true }
+      },
+      {
+        path: '/ending',
+        name: 'Ending',
+        component: () => import('../views/FooterEnding.vue')
       }
     ]
   },
