@@ -128,6 +128,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useAuth } from '../stores/auth'
+import { useRoute } from 'vue-router'
 import QRCode from 'qrcode'
 import { 
   getStudentQRCode, 
@@ -138,7 +139,8 @@ import {
 } from '../api/verify'
 
 const auth = useAuth()
-const isAdmin = computed(() => auth.isAdmin())
+const route = useRoute()
+const isAdmin = computed(() => route.path.startsWith('/admin'))
 
 const qrCanvas = ref(null)
 const isVerified = ref(false)
@@ -176,37 +178,17 @@ onMounted(async () => {
   }
 })
 
-const loadStudentQRCode = async () => {
-  try {
-    const res = await getStudentQRCode()
-    if (res.code === 200) {
-      studentQRCode.value = res.data.code
-      studentInfo.value = res.data.student || studentInfo.value
-      await nextTick()
-      generateQRCode()
-    } else {
-      studentQRCode.value = 'V' + Date.now().toString(36).toUpperCase()
-      studentInfo.value = {
-        studentId: auth.state.user?.studentId || '2020001',
-        name: auth.state.user?.name || '张三',
-        className: auth.state.user?.className || '软件工程2001班',
-        batchYear: auth.state.user?.batchYear || 2024
-      }
-      await nextTick()
-      generateQRCode()
-    }
-  } catch (error) {
-    console.error('获取二维码失败:', error)
-    studentQRCode.value = 'V' + Date.now().toString(36).toUpperCase()
-    studentInfo.value = {
-      studentId: auth.state.user?.studentId || '2020001',
-      name: auth.state.user?.name || '张三',
-      className: auth.state.user?.className || '软件工程2001班',
-      batchYear: auth.state.user?.batchYear || 2024
-    }
-    await nextTick()
-    generateQRCode()
+const loadStudentQRCode = () => {
+  studentQRCode.value = 'V' + auth.state.user?.studentId?.toUpperCase() || 'V' + Date.now().toString(36).toUpperCase()
+  studentInfo.value = {
+    studentId: auth.state.user?.studentId || '2020001',
+    name: auth.state.user?.name || '张三',
+    className: auth.state.user?.className || '软件工程2001班',
+    batchYear: auth.state.user?.batchYear || 2024
   }
+  setTimeout(() => {
+    generateQRCode()
+  }, 100)
 }
 
 const loadStudentVerifyStatus = async () => {

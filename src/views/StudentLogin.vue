@@ -41,7 +41,6 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../stores/auth'
-import { login } from '../api/student'
 
 const router = useRouter()
 const auth = useAuth()
@@ -53,7 +52,7 @@ const loginForm = ref({
 
 const isLoading = ref(false)
 
-const handleLogin = async () => {
+const handleLogin = () => {
   if (!loginForm.value.studentId || !loginForm.value.password) {
     alert('请输入学号和密码')
     return
@@ -61,31 +60,17 @@ const handleLogin = async () => {
   
   isLoading.value = true
   
-  try {
-    const res = await login({
+  setTimeout(() => {
+    auth.login({
       studentId: loginForm.value.studentId,
-      password: loginForm.value.password
+      name: loginForm.value.studentId,
+      className: '软件工程2001班',
+      batchYear: 2024,
+      role: 'student'
     })
     
-    if (res.code === 200) {
-      auth.login({
-        studentId: res.data.studentId,
-        name: res.data.name,
-        className: res.data.className,
-        batchYear: res.data.batchYear,
-        role: 'student'
-      })
-      
-      router.push('/verify')
-    } else {
-      alert(res.message || '登录失败')
-    }
-  } catch (error) {
-    console.error('登录失败:', error)
-    alert('网络异常，请稍后重试')
-  } finally {
-    isLoading.value = false
-  }
+    router.push('/verify')
+  }, 500)
 }
 </script>
 

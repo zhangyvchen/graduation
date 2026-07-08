@@ -17,28 +17,28 @@
     </div>
     
     <div class="quick-stats">
-      <el-card class="stat-card">
+      <el-card class="stat-card clickable" @click="router.push('/admin/batch')">
         <div class="stat-icon">📊</div>
         <div class="stat-info">
           <div class="stat-value">{{ stats.totalBatches }}</div>
           <div class="stat-label">管理批次</div>
         </div>
       </el-card>
-      <el-card class="stat-card">
+      <el-card class="stat-card clickable" @click="router.push('/admin/student')">
         <div class="stat-icon">👥</div>
         <div class="stat-info">
           <div class="stat-value">{{ stats.totalStudents }}</div>
           <div class="stat-label">学生总数</div>
         </div>
       </el-card>
-      <el-card class="stat-card">
+      <el-card class="stat-card clickable" @click="router.push('/admin/template')">
         <div class="stat-icon">📄</div>
         <div class="stat-info">
           <div class="stat-value">{{ stats.totalTemplates }}</div>
           <div class="stat-label">报告模板</div>
         </div>
       </el-card>
-      <el-card class="stat-card">
+      <el-card class="stat-card clickable" @click="router.push('/admin/verify')">
         <div class="stat-icon">✅</div>
         <div class="stat-info">
           <div class="stat-value">{{ stats.totalVerified }}</div>
@@ -64,6 +64,9 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const stats = ref({
   totalBatches: 4,
@@ -134,6 +137,17 @@ onMounted(() => {
   align-items: center;
   gap: 20px;
   padding: 20px;
+  cursor: default;
+}
+
+.stat-card.clickable {
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.stat-card.clickable:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 
 .stat-icon {
