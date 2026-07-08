@@ -1,3 +1,4 @@
+<!-- src/views/LearningProfile.vue -->
 <template>
   <div class="learning-page">
     <!-- 新增：数据故事 -->
@@ -52,7 +53,7 @@
     </div>
 
     <div class="charts-grid">
-      <el-card class="chart-card">
+      <el-card class="chart-card" :loading="loading">
         <template #header>
           <span>📊 平均绩点分布</span>
           <el-tag size="small" type="info">GPA区间</el-tag>
@@ -60,7 +61,7 @@
         <div ref="gpaChartRef" class="chart"></div>
       </el-card>
 
-      <el-card class="chart-card">
+      <el-card class="chart-card" :loading="loading">
         <template #header>
           <span>📖 图书馆借阅统计</span>
           <el-tag size="small" type="info">各年级对比</el-tag>
@@ -83,32 +84,36 @@
         </template>
         <div ref="competitionChartRef" class="chart"></div>
       </el-card>
+
+      <el-card class="chart-card" :loading="loading">
+        <template #header>
+          <span>实验室参与度</span>
+        </template>
+        <div ref="labChart" class="chart"></div>
+      </el-card>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, watch } from 'vue'
+import { ref, onMounted, nextTick, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
 import { getLearningByYear } from '../api/learning'
 import DataStory from '../components/DataStory.vue'
 import DanmakuLayer from '../components/DanmakuLayer.vue'
 import { generateStory } from '../utils/storyGenerator'
 
-const years = [2024, 2023, 2022, 2021]
-const selectedYear = ref(2024)
-const selectedCollege = ref('')
-const colleges = ref(['软件工程学院', '计算机科学学院', '信息管理学院', '人工智能学院', '网络工程学院'])
+const years = ref([])
+const selectedYear = ref(null)
+const loading = ref(false)
 
-const gpaChartRef = ref(null)
-const libraryChartRef = ref(null)
-const labChartRef = ref(null)
-const competitionChartRef = ref(null)
+const gpaChart = ref(null)
+const libraryChart = ref(null)
+const labChart = ref(null)
 
-let gpaChart = null
-let libraryChart = null
-let labChart = null
-let competitionChart = null
+let gpaInstance = null
+let libraryInstance = null
+let labInstance = null
 
 // 新增：故事文本
 const storyText = ref('')
@@ -120,43 +125,21 @@ const stats = ref({
   competitionCount: 156
 })
 
-const learningData = ref({
-  gpa: [
-    { range: '3.5-4.0', count: 180 },
-    { range: '3.0-3.5', count: 280 },
-    { range: '2.5-3.0', count: 210 },
-    { range: '2.0-2.5', count: 95 },
-    { range: '<2.0', count: 35 }
-  ],
-  library: [
-    { grade: '大一', count: 22 },
-    { grade: '大二', count: 48 },
-    { grade: '大三', count: 65 },
-    { grade: '大四', count: 38 }
-  ],
-  lab: [
-    { college: '软件工程', rate: 38 },
-    { college: '计算机科学', rate: 45 },
-    { college: '信息管理', rate: 28 },
-    { college: '人工智能', rate: 52 },
-    { college: '网络工程', rate: 22 }
-  ],
-  competition: {
-    international: 8,
-    national: 35,
-    provincial: 62,
-    school: 51
-  }
-})
-
-const loadData = async () => {
+// ========== 获取年份列表 ==========
+const loadYears = async () => {
   try {
-    const res = await getLearningByYear(selectedYear.value)
+    const res = await getDestinationYears()
     if (res.code === 200 && res.data) {
-      learningData.value = res.data
-      stats.value = res.data.stats || stats.value
-    } else {
-      // 使用模拟数据
+      years.value = res.data
+      if (years.value.length > 0 && !selectedYear.value) {
+        selectedYear.value = years.value[0]
+      }
+    }
+  } catch (error) {
+    console.error('获取年份列表失败:', error)
+    years.value = [2024, 2023, 2022, 2021]
+    if (!selectedYear.value) {
+      selectedYear.value = years.value[0]
     }
   } catch (e) {
     // 使用模拟数据
@@ -286,15 +269,212 @@ const updateCharts = () => {
   }
 }
 
-onMounted(() => {
-  loadData()
-  nextTick(() => initCharts())
-  window.addEventListener('resize', () => {
-    [gpaChart, libraryChart, labChart, competitionChart].forEach(c => c?.resize())
+// ========== 加载统计数据 ==========
+const loadStats = async (year) => {
+  try {
+    const res = await getLearningByYear(year)
+    if (res.code === 200 && res.data) {
+      statsData.value = res.data
+      return res.data
+    }
+  } catch (error) {
+    console.error('获取学习统计数据失败:', error)
+  }
+  return null
+}
+
+// ========== 刷新数据 ==========
+const refreshData = async () => {
+  if (loading.value || !selectedYear.value) return
+
+  loading.value = true
+  try {
+    await loadStats(selectedYear.value)
+    await nextTick()
+    renderCharts()
+  } catch (error) {
+    console.error('刷新数据失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+const onYearChange = () => {
+  refreshData()
+}
+
+// ========== 渲染所有图表 ==========
+const renderCharts = () => {
+  renderGpaChart()
+  renderLibraryChart()
+  renderLabChart()
+}
+
+// ========== GPA 分布图表 ==========
+const renderGpaChart = () => {
+  if (!gpaChart.value) return
+  if (!gpaInstance) {
+    gpaInstance = echarts.init(gpaChart.value)
+  }
+
+  const data = statsData.value.gpaData || []
+  const labels = ['<2.0', '2.0-2.5', '2.5-3.0', '3.0-3.5', '3.5-4.0']
+
+  if (!data || data.length === 0 || data.every(v => v === 0)) {
+    gpaInstance.setOption({
+      title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#999', fontSize: 16 } },
+      xAxis: { show: false },
+      yAxis: { show: false },
+      series: [{ type: 'bar', data: [] }]
+    })
+    return
+  }
+
+  gpaInstance.setOption({
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (params) => {
+        const p = params[0]
+        return `<strong>${p.name}</strong><br/>人数：<strong>${p.value}</strong>`
+      }
+    },
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '5%', containLabel: true },
+    xAxis: { type: 'category', data: labels },
+    yAxis: { type: 'value' },
+    series: [{
+      type: 'bar',
+      data: data,
+      barWidth: '50%',
+      itemStyle: {
+        borderRadius: [4, 4, 0, 0],
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: '#667eea' },
+          { offset: 1, color: '#764ba2' }
+        ])
+      },
+      label: { show: true, position: 'top' }
+    }]
   })
+
+  gpaInstance.resize()
+}
+
+// ========== 图书馆借阅图表 ==========
+const renderLibraryChart = () => {
+  if (!libraryChart.value) return
+  if (!libraryInstance) {
+    libraryInstance = echarts.init(libraryChart.value)
+  }
+
+  const data = statsData.value.libraryData || []
+  const labels = ['大一', '大二', '大三', '大四']
+
+  if (!data || data.length === 0 || data.every(v => v === 0)) {
+    libraryInstance.setOption({
+      title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#999', fontSize: 16 } },
+      xAxis: { show: false },
+      yAxis: { show: false },
+      series: [{ type: 'line', data: [] }]
+    })
+    return
+  }
+
+  libraryInstance.setOption({
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params) => {
+        const p = params[0]
+        return `<strong>${p.name}</strong><br/>借阅人数：<strong>${p.value}</strong>`
+      }
+    },
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '5%', containLabel: true },
+    xAxis: { type: 'category', data: labels, boundaryGap: false },
+    yAxis: { type: 'value' },
+    series: [{
+      type: 'line',
+      data: data,
+      smooth: true,
+      symbol: 'circle',
+      symbolSize: 8,
+      lineStyle: { width: 3, color: '#4facfe' },
+      areaStyle: {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: 'rgba(79, 172, 254, 0.3)' },
+          { offset: 1, color: 'rgba(79, 172, 254, 0.05)' }
+        ])
+      },
+      itemStyle: { color: '#4facfe' },
+      label: { show: true, position: 'top' }
+    }]
+  })
+
+  libraryInstance.resize()
+}
+
+// ========== 实验室参与度图表 ==========
+const renderLabChart = () => {
+  if (!labChart.value) return
+  if (!labInstance) {
+    labInstance = echarts.init(labChart.value)
+  }
+
+  const data = statsData.value.labData || []
+
+  if (!data || data.length === 0) {
+    labInstance.setOption({
+      title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#999', fontSize: 16 } },
+      series: [{ type: 'pie', data: [] }]
+    })
+    return
+  }
+
+  const colors = ['#43e97b', '#fa709a']
+
+  labInstance.setOption({
+    tooltip: {
+      trigger: 'item',
+      formatter: (params) => {
+        return `<strong>${params.name}</strong><br/>人数：<strong>${params.value}</strong><br/>占比：<strong>${params.percent}%</strong>`
+      }
+    },
+    legend: { orient: 'vertical', left: 'left' },
+    series: [{
+      type: 'pie',
+      radius: ['40%', '70%'],
+      avoidLabelOverlap: true,
+      itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
+      label: { show: true, formatter: '{b}\n{d}%' },
+      data: data.map((item, index) => ({
+        ...item,
+        itemStyle: { color: colors[index % colors.length] }
+      }))
+    }]
+  })
+
+  labInstance.resize()
+}
+
+// ========== 窗口自适应 ==========
+const handleResize = () => {
+  if (gpaInstance) gpaInstance.resize()
+  if (libraryInstance) libraryInstance.resize()
+  if (labInstance) labInstance.resize()
+}
+
+// ========== 生命周期 ==========
+onMounted(async () => {
+  await loadYears()
+  await refreshData()
+  window.addEventListener('resize', handleResize)
 })
 
-watch(selectedYear, onYearChange)
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  if (gpaInstance) { gpaInstance.dispose(); gpaInstance = null }
+  if (libraryInstance) { libraryInstance.dispose(); libraryInstance = null }
+  if (labInstance) { labInstance.dispose(); labInstance = null }
+})
 </script>
 
 <style scoped>

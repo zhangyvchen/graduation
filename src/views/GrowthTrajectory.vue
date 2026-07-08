@@ -1,3 +1,4 @@
+<!-- src/views/GrowthTrajectory.vue -->
 <template>
   <div class="growth-page">
     <!-- 新增：数据故事 -->
@@ -21,7 +22,7 @@
     </div>
 
     <div class="charts-grid">
-      <el-card class="chart-card">
+      <el-card class="chart-card" :loading="loading">
         <template #header>
           <span>🏆 荣誉奖项分布</span>
           <el-tag size="small" type="info">按级别</el-tag>
@@ -51,6 +52,20 @@
           <el-tag size="small" type="info">政治面貌</el-tag>
         </template>
         <div ref="partyChartRef" class="chart"></div>
+      </el-card>
+
+      <el-card class="chart-card" :loading="loading">
+        <template #header>
+          <span>学生干部分布</span>
+        </template>
+        <div ref="cadreChart" class="chart"></div>
+      </el-card>
+
+      <el-card class="chart-card" :loading="loading">
+        <template #header>
+          <span>政治面貌分布</span>
+        </template>
+        <div ref="partyChart" class="chart"></div>
       </el-card>
     </div>
   </div>
