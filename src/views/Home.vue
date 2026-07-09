@@ -68,6 +68,17 @@ const trendChartRef = ref(null)
 let pieChart = null
 let trendChart = null
 const allYearData = ref([])
+const years = ref([2024, 2023, 2022, 2021])
+const selectedYear = ref(2024)
+const loading = ref(false)
+
+const refreshData = async () => {
+  loading.value = true
+  await loadOverview()
+  loading.value = false
+}
+
+const onYearChange = () => {}
 
 onMounted(async () => {
   await loadOverview()
@@ -84,7 +95,7 @@ const loadOverview = async () => {
 
 const loadAllYears = async () => {
   const data = []
-  for (const year of years) {
+  for (const year of years.value) {
     const res = await getOverview(year)
     if (res.code === 200 && res.data) data.push(res.data)
   }

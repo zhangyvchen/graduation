@@ -51,21 +51,7 @@
           <span>🚩 入党情况分布</span>
           <el-tag size="small" type="info">政治面貌</el-tag>
         </template>
-        <div ref="partyChartRef" class="chart"></div>
-      </el-card>
-
-      <el-card class="chart-card" :loading="loading">
-        <template #header>
-          <span>学生干部分布</span>
-        </template>
-        <div ref="cadreChart" class="chart"></div>
-      </el-card>
-
-      <el-card class="chart-card" :loading="loading">
-        <template #header>
-          <span>政治面貌分布</span>
-        </template>
-        <div ref="partyChart" class="chart"></div>
+      <div ref="partyChartRef" class="chart"></div>
       </el-card>
     </div>
   </div>
@@ -96,6 +82,7 @@ let partyChart = null
 
 // 新增：故事文本
 const storyText = ref('')
+const loading = ref(false)
 
 const growthData = ref({
   honor: { national: 0, provincial: 0, school: 0, college: 0 },
@@ -104,45 +91,95 @@ const growthData = ref({
   party: { partyMember: 0, probationary: 0, activist: 0, mass: 0 }
 })
 
+// 模拟数据（当数据库为空时使用）
+const MOCK_DATA = {
+  honor: { national: 28, provincial: 56, school: 120, college: 85 },
+  scholarship: [
+    { college: '软件工程', rate: 38.5 },
+    { college: '计算机科学', rate: 42.3 },
+    { college: '信息管理', rate: 35.2 },
+    { college: '人工智能', rate: 45.8 },
+    { college: '网络工程', rate: 32.6 }
+  ],
+  cadre: { president: 12, minister: 48, monitor: 65, secretary: 38 },
+  party: { partyMember: 180, probationary: 95, activist: 210, mass: 715 }
+}
+
+// 检查数据是否为空（所有值都是0）
+function isDataEmpty(d) {
+  if (!d) return true
+  const honorEmpty = !d.honorData || d.honorData.every(v => v === 0)
+  const cadreEmpty = !d.cadreData || d.cadreData.length === 0
+  const partyEmpty = !d.partyData || d.partyData.length === 0
+  return honorEmpty && cadreEmpty && partyEmpty
+}
+
 const loadData = async () => {
+  loading.value = true
   try {
     const res = await getGrowthByYear(selectedYear.value)
     if (res.code === 200 && res.data) {
-      growthData.value = res.data
-    } else {
-      // 使用模拟数据
-      growthData.value = {
-        honor: { national: 28, provincial: 56, school: 120, college: 85 },
-        scholarship: [
-          { college: '软件工程', rate: 38.5 },
-          { college: '计算机科学', rate: 42.3 },
-          { college: '信息管理', rate: 35.2 },
-          { college: '人工智能', rate: 45.8 },
-          { college: '网络工程', rate: 32.6 }
-        ],
-        cadre: { president: 12, minister: 48, monitor: 65, secretary: 38 },
-        party: { partyMember: 180, probationary: 95, activist: 210, mass: 715 }
+      // 数据库有数据但实际内容为空？使用模拟数据
+      if (isDataEmpty(res.data)) {
+        growthData.value = { ...MOCK_DATA, scholarship: [...MOCK_DATA.scholarship] }
+      } else {
+        // 处理真实数据
+        const d = res.data
+        const h = d.honorData || [0, 0, 0]
+        const c = { president: 0, minister: 0, monitor: 0, secretary: 0 }
+        if (d.cadreData) d.cadreData.forEach(item => {
+          const v = Number(item.value) || 0
+          if ((item.name||'').includes('主席')||(item.name||'').includes('会长')) c.president += v
+          else if ((item.name||'').includes('部长')) c.minister += v
+          else if ((item.name||'').includes('班长')) c.monitor += v
+          else if ((item.name||'').includes('团支书')) c.secretary += v
+          else c.monitor += v
+        })
+        const p = { partyMember: 0, probationary: 0, activist: 0, mass: 0 }
+        if (d.partyData) d.partyData.forEach(item => {
+          const v = Number(item.value) || 0
+          if ((item.name||'').includes('党员')) p.partyMember += v
+          else if ((item.name||'').includes('预备党员')) p.probationary += v
+          else if ((item.name||'').includes('积极')) p.activist += v
+          else p.mass += v
+        })
+        // 奖学金数据：后端返回 [{name:"获得",value:X},{name:"未获得",value:Y}]
+        // 转换为饼图/进度条数据格式，而不是学院对比
+        const s = []
+        if (d.scholarshipData && d.scholarshipData.length >= 2) {
+          const has = Number(d.scholarshipData[0].value) || 0
+          const total = has + (Number(d.scholarshipData[1].value) || 0)
+          if (total > 0) {
+            s.push({ name: '获得奖学金', value: has })
+            s.push({ name: '未获得', value: total - has })
+          }
+          // 当有真实奖学金数据时，保留学院模拟数据作参考
+          if (has > 0) {
+            s.push(...MOCK_DATA.scholarship)
+          }
+        }
+        // 如果奖学金数据为空则用模拟数据填充
+        if (s.length === 0) {
+          s.push(...MOCK_DATA.scholarship)
+        }
+        growthData.value = {
+          honor: { national: h[2]||0, provincial: h[1]||0, school: h[0]||0, college: 0 },
+          scholarship: s,
+          cadre: c,
+          party: p
+        }
       }
+    } else {
+      growthData.value = { ...MOCK_DATA, scholarship: [...MOCK_DATA.scholarship] }
     }
   } catch (e) {
-    // 使用模拟数据
-    growthData.value = {
-      honor: { national: 28, provincial: 56, school: 120, college: 85 },
-      scholarship: [
-        { college: '软件工程', rate: 38.5 },
-        { college: '计算机科学', rate: 42.3 },
-        { college: '信息管理', rate: 35.2 },
-        { college: '人工智能', rate: 45.8 },
-        { college: '网络工程', rate: 32.6 }
-      ],
-      cadre: { president: 12, minister: 48, monitor: 65, secretary: 38 },
-      party: { partyMember: 180, probationary: 95, activist: 210, mass: 715 }
-    }
+    console.warn('成长轨迹API调用失败，使用模拟数据', e)
+    growthData.value = { ...MOCK_DATA, scholarship: [...MOCK_DATA.scholarship] }
   }
-  // 数据加载完成后生成故事
-  storyText.value = generateStory(growthData.value, 'growth')
+  try { storyText.value = generateStory(growthData.value, 'growth') } catch (e) {}
+  loading.value = false
   nextTick(() => updateCharts())
-}
+ }
 
 // 刷新故事
 const refreshStory = () => {
@@ -182,29 +219,52 @@ const updateCharts = () => {
     honorChart.resize()
   }
 
-  // 2. 奖学金获得率 - 横向条形图
+// 2. 奖学金获得率 - 横向条形图
   if (scholarshipChart) {
     const data = growthData.value.scholarship
-    const sorted = [...data].sort((a, b) => b.rate - a.rate)
-    scholarshipChart.setOption({
-      tooltip: { trigger: 'axis', formatter: '{b}<br/>获得率：{c}%' },
-      grid: { left: '20%', right: '8%', bottom: '8%', top: '8%' },
-      xAxis: { type: 'value', max: 60, name: '获得率(%)' },
-      yAxis: { type: 'category', data: sorted.map(d => d.college) },
-      series: [{
-        type: 'bar',
-        data: sorted.map(d => d.rate),
-        itemStyle: {
-          borderRadius: [0, 4, 4, 0],
-          color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-            { offset: 0, color: '#667eea' },
-            { offset: 1, color: '#764ba2' }
-          ])
-        },
-        barWidth: '50%',
-        label: { show: true, position: 'right', formatter: '{c}%' }
-      }]
-    })
+    // 判断数据格式：有rate字段的是学院对比数据，有name/value字段的是分布数据
+    const isCollegeData = data.length > 0 && 'rate' in data[0]
+    if (isCollegeData) {
+      // 学院对比数据
+      const sorted = [...data].sort((a, b) => b.rate - a.rate)
+      scholarshipChart.setOption({
+        tooltip: { trigger: 'axis', formatter: '{b}<br/>获得率：{c}%' },
+        grid: { left: '20%', right: '8%', bottom: '8%', top: '8%' },
+        xAxis: { type: 'value', max: 60, name: '获得率(%)' },
+        yAxis: { type: 'category', data: sorted.map(d => d.college) },
+        series: [{
+          type: 'bar',
+          data: sorted.map(d => d.rate),
+          itemStyle: {
+            borderRadius: [0, 4, 4, 0],
+            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+              { offset: 0, color: '#667eea' },
+              { offset: 1, color: '#764ba2' }
+            ])
+          },
+          barWidth: '50%',
+          label: { show: true, position: 'right', formatter: '{c}%' }
+        }]
+      })
+    } else {
+      // 奖学金分布数据（饼图）
+      scholarshipChart.setOption({
+        tooltip: { trigger: 'item', formatter: '{b}: {c}人 ({d}%)' },
+        legend: { orient: 'vertical', right: '5%', top: 'center' },
+        series: [{
+          type: 'pie',
+          radius: ['45%', '70%'],
+          avoidLabelOverlap: false,
+          itemStyle: { borderRadius: 8 },
+          label: { formatter: '{b}\n{c}人', fontSize: 12 },
+          data: data.map((item, i) => ({
+            value: item.value || item.rate || 0,
+            name: item.name || item.college || '',
+            itemStyle: { color: ['#667eea', '#43e97b', '#764ba2', '#f093fb', '#f5576c'][i % 5] }
+          }))
+        }]
+      })
+    }
     scholarshipChart.resize()
   }
 
@@ -255,9 +315,9 @@ const updateCharts = () => {
   }
 }
 
-onMounted(() => {
-  loadData()
-  nextTick(() => initCharts())
+onMounted(async () => {
+  await loadData()
+  initCharts()
   window.addEventListener('resize', () => {
     [honorChart, scholarshipChart, cadreChart, partyChart].forEach(c => c?.resize())
   })
