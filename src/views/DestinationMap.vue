@@ -64,7 +64,7 @@
 import { ref, onMounted, nextTick, watch } from 'vue'
 import * as echarts from 'echarts'
 import { Loading } from '@element-plus/icons-vue'
-import { getDestinationByYear } from '../api/destination'
+import { getDestinationByYear, getProvinceStats, getIndustryStats } from '../api/destination'
 import DataStory from '../components/DataStory.vue'
 import DanmakuLayer from '../components/DanmakuLayer.vue'
 import { generateStory } from '../utils/storyGenerator'
@@ -85,62 +85,99 @@ const mapLoaded = ref(false)
 
 // 新增：故事文本
 const storyText = ref('')
+const loading = ref(false)
+const destData = ref({ heatmap: [], schools: [], industry: [] })
 
-const destData = ref({
-  heatmap: [],
-  schools: [],
-  industry: []
-})
+// ===== 模拟数据（数据库为空时使用）=====
+const MOCK_PROVINCES = [
+  { name: '广东', value: 385 }, { name: '浙江', value: 268 }, { name: '江苏', value: 245 },
+  { name: '北京', value: 212 }, { name: '上海', value: 198 }, { name: '四川', value: 156 },
+  { name: '湖北', value: 142 }, { name: '山东', value: 138 }, { name: '福建', value: 125 },
+  { name: '湖南', value: 112 }, { name: '河南', value: 98 }, { name: '安徽', value: 85 },
+  { name: '重庆', value: 78 }, { name: '陕西', value: 72 }, { name: '河北', value: 65 }
+]
+const MOCK_SCHOOLS = [
+  { name: '北京大学', count: 28 }, { name: '清华大学', count: 25 },
+  { name: '浙江大学', count: 22 }, { name: '上海交通大学', count: 20 },
+  { name: '复旦大学', count: 18 }, { name: '南京大学', count: 16 },
+  { name: '华中科技大学', count: 15 }, { name: '武汉大学', count: 14 },
+  { name: '中山大学', count: 13 }, { name: '西安交通大学', count: 12 },
+  { name: '哈尔滨工业大学', count: 11 }, { name: '北京航空航天大学', count: 10 },
+  { name: '同济大学', count: 9 }, { name: '南开大学', count: 8 },
+  { name: '天津大学', count: 7 }, { name: '厦门大学', count: 6 },
+  { name: '东南大学', count: 5 }, { name: '华南理工大学', count: 5 },
+  { name: '大连理工大学', count: 4 }, { name: '电子科技大学', count: 4 }
+]
+const MOCK_INDUSTRY = [
+  { name: '互联网/IT', value: 28.5 }, { name: '教育/科研', value: 18.2 },
+  { name: '金融/银行', value: 15.6 }, { name: '制造业', value: 12.3 },
+  { name: '政府/事业单位', value: 10.8 }, { name: '医疗/健康', value: 7.5 },
+  { name: '其他', value: 7.1 }
+]
+
+// ===== 检查数据是否为空 =====
+function isDataEmpty(heatmap, schools, industry) {
+  return heatmap.length === 0 && schools.length === 0 && industry.length === 0
+}
 
 // ===== 数据加载 =====
 const loadData = async () => {
+  loading.value = true
   try {
-    const res = await getDestinationByYear(selectedYear.value)
-    if (res.code === 200 && res.data) {
-      destData.value = res.data
-    } else {
-      // 模拟数据
-      destData.value = {
-        heatmap: [
-          { name: '北京市', value: 180 }, { name: '上海市', value: 160 },
-          { name: '广东省', value: 320 }, { name: '浙江省', value: 210 },
-          { name: '江苏省', value: 195 }, { name: '四川省', value: 145 },
-          { name: '湖北省', value: 130 }, { name: '湖南省', value: 95 },
-          { name: '福建省', value: 85 }, { name: '山东省', value: 75 },
-          { name: '河南省', value: 65 }, { name: '河北省', value: 55 },
-          { name: '安徽省', value: 50 }, { name: '辽宁省', value: 45 },
-          { name: '陕西省', value: 40 }, { name: '重庆市', value: 38 },
-          { name: '天津市', value: 35 }, { name: '云南省', value: 30 },
-          { name: '贵州省', value: 25 }, { name: '广西壮族自治区', value: 22 }
-        ],
-        schools: [
-          { name: '清华大学', count: 18 }, { name: '北京大学', count: 15 },
-          { name: '浙江大学', count: 14 }, { name: '复旦大学', count: 12 },
-          { name: '上海交通大学', count: 11 }, { name: '南京大学', count: 10 },
-          { name: '中国科学技术大学', count: 9 }, { name: '华中科技大学', count: 8 },
-          { name: '武汉大学', count: 8 }, { name: '中山大学', count: 7 },
-          { name: '四川大学', count: 7 }, { name: '哈尔滨工业大学', count: 6 },
-          { name: '西安交通大学', count: 6 }, { name: '北京航空航天大学', count: 5 },
-          { name: '同济大学', count: 5 }, { name: '南开大学', count: 4 },
-          { name: '厦门大学', count: 4 }, { name: '东南大学', count: 4 },
-          { name: '天津大学', count: 3 }, { name: '山东大学', count: 3 }
-        ],
-        industry: [
-          { name: '互联网/IT', value: 35 },
-          { name: '金融/银行', value: 22 },
-          { name: '制造业', value: 16 },
-          { name: '教育/培训', value: 12 },
-          { name: '公共管理', value: 8 },
-          { name: '医疗健康', value: 5 },
-          { name: '其他', value: 2 }
-        ]
-      }
+    const year = selectedYear.value
+
+    // 1. 省份统计 → 热力图数据
+    const provinceRes = await getProvinceStats(year)
+    let heatmap = []
+    if (provinceRes.code === 200 && provinceRes.data) {
+      const pData = provinceRes.data
+      ;(pData.provinces || []).forEach((name, i) => {
+        heatmap.push({ name, value: (pData.counts || [])[i] || 0 })
+      })
     }
+
+    // 2. 去向明细数据 → 升学院校 Top20
+    const rawRes = await getDestinationByYear(year)
+    const schoolMap = new Map()
+    let schools = []
+    if (rawRes.code === 200 && Array.isArray(rawRes.data)) {
+      rawRes.data.forEach(item => {
+        if (item.schoolName) {
+          schoolMap.set(item.schoolName, (schoolMap.get(item.schoolName) || 0) + 1)
+        }
+      })
+    }
+    if (schoolMap.size > 0) {
+      schools = Array.from(schoolMap.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 20)
+    }
+
+    // 3. 行业统计
+    const industryRes = await getIndustryStats(year)
+    let industry = (industryRes.code === 200 && industryRes.data?.industryData) ? industryRes.data.industryData : []
+
+    // 4. 如果所有数据都为空，使用模拟数据
+    if (isDataEmpty(heatmap, schools, industry)) {
+      console.log('去向地图数据库为空，使用模拟数据')
+      heatmap = MOCK_PROVINCES
+      schools = MOCK_SCHOOLS
+      industry = MOCK_INDUSTRY
+    }
+
+    destData.value = { heatmap, schools, industry }
   } catch (e) {
     console.warn('API调用失败，使用模拟数据', e)
+    destData.value = {
+      heatmap: MOCK_PROVINCES,
+      schools: MOCK_SCHOOLS,
+      industry: MOCK_INDUSTRY
+    }
   }
   // 数据加载完成后生成故事
   storyText.value = generateStory(destData.value, 'destination')
+  loading.value = false
 }
 
 // 刷新故事
@@ -187,10 +224,8 @@ const updateCharts = () => {
 // ----- 1. 中国地图热力图 -----
 const updateHeatmap = () => {
   if (!heatmapChart) return
-
   const data = destData.value.heatmap
   const maxValue = Math.max(...data.map(d => d.value), 1)
-
   if (mapLoaded.value && echarts.getMap('china')) {
     heatmapChart.setOption({
       tooltip: {
@@ -208,20 +243,6 @@ const updateHeatmap = () => {
         text: ['高', '低'],
         calculable: true,
         inRange: { color: ['#e8f5e9', '#a5d6a7', '#66bb6a', '#2e7d32'] }
-      },
-      geo: {
-        map: 'china',
-        roam: true,
-        zoom: 1.2,
-        center: [104, 35],
-        itemStyle: {
-          areaColor: '#e8ecf1',
-          borderColor: '#fff',
-          borderWidth: 1
-        },
-        emphasis: {
-          itemStyle: { areaColor: '#667eea' }
-        }
       },
       series: [{
         name: '就业人数',
@@ -322,20 +343,14 @@ const updateIndustry = () => {
 }
 
 // ===== 事件处理 =====
-const onYearChange = () => {
-  loadData()
-  setTimeout(() => updateCharts(), 300)
-}
+const onYearChange = () => loadData()
 const onCollegeChange = onYearChange
 
 // ===== 生命周期 =====
 onMounted(async () => {
   await loadChinaMap()
   await loadData()
-  nextTick(() => {
-    initCharts()
-    setTimeout(() => updateCharts(), 200)
-  })
+  nextTick(() => initCharts())
 
   window.addEventListener('resize', () => {
     [heatmapChart, schoolChart, industryChart].forEach(c => c?.resize())
