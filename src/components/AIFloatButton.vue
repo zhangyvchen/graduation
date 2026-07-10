@@ -48,12 +48,14 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { aiChat, getChatHistory } from '../api/admin'
 
 const isOpen = ref(false)
 const isLoading = ref(false)
 const unreadCount = ref(0)
 const inputText = ref('')
+const userId = ref('admin_' + new Date().getTime())
 
 const messages = ref([
   {
@@ -67,6 +69,22 @@ const toggleChat = () => {
   isOpen.value = !isOpen.value
   if (isOpen.value) {
     unreadCount.value = 0
+    loadChatHistory()
+  }
+}
+
+const loadChatHistory = async () => {
+  try {
+    const response = await getChatHistory(userId.value)
+    if (response.code === 200 && response.data && response.data.length > 0) {
+      messages.value = response.data.map(msg => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.role === 'ai' ? msg.response || msg.content : msg.content
+      }))
+    }
+  } catch (error) {
+    console.error('加载聊天历史失败:', error)
   }
 }
 
@@ -82,23 +100,62 @@ const sendMessage = async () => {
   inputText.value = ''
   isLoading.value = true
   
-  await new Promise(resolve => setTimeout(resolve, 1500))
-  
-  isLoading.value = false
-  
-  const responses = [
-    '感谢您的提问！基于数据分析，2024届总体就业率达到95.5%，较去年提升了1.3个百分点。',
-    '好的，我来为您分析。当前毕业生就业形势良好，互联网行业占比最高，达到35%。',
-    '根据历史数据预测，下一届升学率有望突破40%，主要增长点来自人工智能领域。',
-    '分析完成！建议关注结构性就业问题，优化专业设置，加大创业扶持力度。'
-  ]
-  
+  const aiMessageId = Date.now() + 1
   messages.value.push({
-    id: Date.now() + 1,
+    id: aiMessageId,
     role: 'ai',
-    content: responses[Math.floor(Math.random() * responses.length)]
+    content: ''
   })
+  
+  try {
+    const response = await fetch('/api/ai/chat/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        userId: userId.value,
+        content: messages.value[messages.value.length - 2].content,
+        messageType: 'general'
+      })
+    })
+    
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      
+      const chunk = decoder.decode(value, { stream: true })
+      const lines = chunk.split('\n')
+      
+      for (const line of lines) {
+        const trimmedLine = line.trim()
+        if (trimmedLine && !trimmedLine.includes('[DONE]') && !trimmedLine.startsWith('event:') && !trimmedLine.startsWith('data:')) {
+          const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
+          if (aiMsgIndex !== -1) {
+            messages.value[aiMsgIndex].content += trimmedLine
+          }
+        }
+      }
+    }
+    
+    isLoading.value = false
+    
+  } catch (error) {
+    console.error('AI聊天失败:', error)
+    isLoading.value = false
+    const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
+    if (aiMsgIndex !== -1) {
+      messages.value[aiMsgIndex].content = '网络连接异常，请稍后重试。'
+    }
+  }
 }
+
+onMounted(() => {
+  loadChatHistory()
+})
 </script>
 
 <style scoped>
