@@ -117,6 +117,11 @@ router.beforeEach((to, from, next) => {
   const auth = useAuth()
   const currentRole = auth.state.role?.toUpperCase()
   
+  if (to.path === '/admin/login') {
+    next()
+    return
+  }
+  
   if (to.meta.requiresAuth) {
     if (!auth.state.isLoggedIn) {
       if (to.meta.role?.toUpperCase() === 'ADMIN') {
@@ -142,13 +147,18 @@ router.beforeEach((to, from, next) => {
       next('/verify')
       return
     }
-    if (to.path.startsWith('/admin') && to.path !== '/admin/login') {
+    if (to.path.startsWith('/admin')) {
       next('/')
       return
     }
   }
   
-  
+  if (auth.state.isLoggedIn && currentRole === 'ADMIN') {
+    if (to.path === '/login') {
+      next('/admin/dashboard')
+      return
+    }
+  }
   
   next()
 })
