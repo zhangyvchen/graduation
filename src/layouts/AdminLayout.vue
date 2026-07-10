@@ -69,7 +69,6 @@
     <main class="main-content">
       <router-view />
     </main>
-    <AIFloatButton />
   </div>
 </template>
 
@@ -77,7 +76,6 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../stores/auth'
-import AIFloatButton from '../components/AIFloatButton.vue'
 
 const router = useRouter()
 const auth = useAuth()
