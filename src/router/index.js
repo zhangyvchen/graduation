@@ -93,6 +93,11 @@ const routes = [
         path: 'import',
         name: 'AdminImport',
         component: () => import('../views/AdminImport.vue')
+      },
+      {
+        path: 'report/:year',
+        name: 'AdminReport',
+        component: () => import('../views/AdminReport.vue')
       }
     ]
   }
@@ -105,10 +110,11 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const auth = useAuth()
+  const currentRole = auth.state.role?.toUpperCase()
   
   if (to.meta.requiresAuth) {
     if (!auth.state.isLoggedIn) {
-      if (to.meta.role === 'admin') {
+      if (to.meta.role?.toUpperCase() === 'ADMIN') {
         next('/admin/login')
       } else {
         next('/login')
@@ -116,8 +122,8 @@ router.beforeEach((to, from, next) => {
       return
     }
     
-    if (to.meta.role && auth.state.role !== to.meta.role) {
-      if (auth.state.role === 'admin') {
+    if (to.meta.role && currentRole !== to.meta.role.toUpperCase()) {
+      if (currentRole === 'ADMIN') {
         next('/admin/dashboard')
       } else {
         next('/')
@@ -126,23 +132,18 @@ router.beforeEach((to, from, next) => {
     }
   }
   
-  if (auth.state.isLoggedIn && auth.state.role === 'student') {
+  if (auth.state.isLoggedIn && currentRole === 'STUDENT') {
     if (to.path === '/login') {
       next('/verify')
       return
     }
-    if (to.path.startsWith('/admin')) {
+    if (to.path.startsWith('/admin') && to.path !== '/admin/login') {
       next('/')
       return
     }
   }
   
-  if (auth.state.isLoggedIn && auth.state.role === 'admin') {
-    if (to.path === '/admin/login') {
-      next('/admin/dashboard')
-      return
-    }
-  }
+  
   
   next()
 })
