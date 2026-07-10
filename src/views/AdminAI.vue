@@ -2,8 +2,24 @@
   <div class="ai-page">
     <header class="content-header">
       <h2>AI 助手</h2>
+      <div class="header-actions">
+        <el-select v-model="currentYear" @change="changeYear" size="small" style="width: 120px; margin-right: 10px;">
+          <el-option
+            v-for="year in availableYears"
+            :key="year"
+            :label="year + '年'"
+            :value="year"
+          />
+        </el-select>
+        <el-button size="small" @click="exportChatHistory">
+          <el-icon><Download /></el-icon> 导出记录
+        </el-button>
+        <el-button size="small" type="danger" @click="clearChatHistory">
+          <el-icon><Delete /></el-icon> 清空记录
+        </el-button>
+      </div>
     </header>
-    
+
     <div class="ai-container">
       <el-card class="ai-card">
         <div class="chat-header">
@@ -11,15 +27,28 @@
           <div class="ai-info">
             <h3>毕业数据报告 AI 助手</h3>
             <p>基于大数据分析，为您提供智能决策支持</p>
+            <div class="ai-status">
+              <el-tag size="small" type="success" effect="dark">
+                <el-icon><Monitor /></el-icon> 在线
+              </el-tag>
+              <span style="margin-left: 10px; color: #f0f0f0;">
+                当前年份：{{ currentYear }}年
+              </span>
+            </div>
           </div>
         </div>
-        
+
         <div class="chat-body">
           <div class="message-list">
-            <div class="message ai-message" v-for="msg in messages" :key="msg.id">
+            <div
+              class="message ai-message"
+              v-for="msg in messages"
+              :key="msg.id"
+              :class="{ 'user-message': msg.role === 'user' }"
+            >
               <div class="message-avatar">{{ msg.role === 'ai' ? '🤖' : '👤' }}</div>
               <div class="message-content">
-                <div class="message-text">{{ msg.content }}</div>
+                <div class="message-text" v-html="formatMessage(msg.content)"></div>
                 <div class="message-time">{{ msg.time }}</div>
               </div>
             </div>
@@ -33,63 +62,127 @@
             </div>
           </div>
         </div>
-        
+
         <div class="chat-input">
-          <el-input 
-            v-model="inputMessage" 
+          <el-input
+            v-model="inputMessage"
             placeholder="输入您的问题，例如：2024届就业率趋势分析"
             @keyup.enter="handleSend"
             size="large"
+            :disabled="isLoading"
+            clearable
           />
-          <el-button type="primary" @click="handleSend" :loading="isLoading">发送</el-button>
-        </div>
-      </el-card>
-      
-      <div class="quick-actions">
-        <h4>快捷问题</h4>
-        <div class="quick-buttons">
-          <el-button 
-            v-for="question in quickQuestions" 
-            :key="question" 
-            @click="handleQuickQuestion(question)"
-            size="small"
-          >
-            {{ question }}
+          <el-button type="primary" @click="handleSend" :loading="isLoading">
+            <el-icon><Send /></el-icon> 发送
           </el-button>
         </div>
-      </div>
-    </div>
-    
-    <div class="ai-features">
-      <h4>AI 能力</h4>
-      <div class="feature-grid">
-        <el-card class="feature-card">
-          <div class="feature-icon">📊</div>
-          <h5>数据分析</h5>
-          <p>基于历史数据进行趋势分析和预测</p>
-        </el-card>
-        <el-card class="feature-card">
-          <div class="feature-icon">📈</div>
-          <h5>统计报告</h5>
-          <p>自动生成数据统计和可视化报告</p>
-        </el-card>
-        <el-card class="feature-card">
-          <div class="feature-icon">🎯</div>
-          <h5>智能推荐</h5>
-          <p>根据数据特征提供个性化建议</p>
-        </el-card>
-        <el-card class="feature-card">
-          <div class="feature-icon">📝</div>
-          <h5>文案生成</h5>
-          <p>自动生成数据分析报告和总结</p>
-        </el-card>
+      </el-card>
+
+      <div class="quick-actions">
+        <div class="quick-section">
+          <h4>
+            <el-icon><Question /></el-icon> 快捷问题
+          </h4>
+          <div class="quick-buttons">
+            <el-button
+              v-for="question in quickQuestions"
+              :key="question"
+              @click="handleQuickQuestion(question)"
+              size="small"
+            >
+              <el-icon><ChatDotRound /></el-icon> {{ question }}
+            </el-button>
+          </div>
+        </div>
+
+        <div class="quick-section">
+          <h4>
+            <el-icon><DataAnalysis /></el-icon> 快速分析
+          </h4>
+          <div class="quick-buttons">
+            <el-button
+              size="small"
+              @click="generateAnalysis('employment')"
+              :loading="isLoading"
+            >
+              <el-icon><PieChart /></el-icon> 就业分析
+            </el-button>
+            <el-button
+              size="small"
+              @click="generateAnalysis('major')"
+              :loading="isLoading"
+            >
+              <el-icon><School /></el-icon> 专业分析
+            </el-button>
+            <el-button
+              size="small"
+              @click="generateAnalysis('prediction')"
+              :loading="isLoading"
+            >
+              <el-icon><TrendCharts /></el-icon> 趋势预测
+            </el-button>
+            <el-button
+              size="small"
+              @click="generateAnalysis('report')"
+              :loading="isLoading"
+            >
+              <el-icon><Document /></el-icon> 年度报告
+            </el-button>
+          </div>
+        </div>
+
+        <div class="tips-section">
+          <h4>
+            <el-icon><InfoFilled /></el-icon> 使用提示
+          </h4>
+          <div class="tips-content">
+            <p>• 使用自然语言提问，如"2024届就业率如何？"</p>
+            <p>• 可以要求生成特定类型的分析报告</p>
+            <p>• 支持切换不同年份的数据进行分析</p>
+            <p>• 聊天记录可以导出保存</p>
+          </div>
+        </div>
+
+        <div class="quick-section">
+          <h4>
+            <el-icon><History /></el-icon> 数据统计
+          </h4>
+          <div class="stats-content">
+            <el-progress type="circle" :percentage="chatCount" :width="60">
+              <template #default="{ percentage }">
+                <span class="progress-text">{{ chatCount }}</span>
+              </template>
+            </el-progress>
+            <div class="stats-label">对话条数</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import * as ElementPlusIconsVue from '@element-plus/icons-vue'
+import { aiChat, getChatHistory, getChatHistoryByYear, generateEmploymentAnalysis, generateMajorAnalysis, generatePredictionAnalysis, generateAnnualReport } from '../api/admin'
+
+// 注册所有图标
+const {
+  Download,
+  Delete,
+  Monitor,
+  Send,
+  Question,
+  ChatDotRound,
+  DataAnalysis,
+  PieChart,
+  School,
+  TrendCharts,
+  Document,
+  InfoFilled,
+  History
+} = ElementPlusIconsVue
 
 const messages = ref([
   {
@@ -102,65 +195,265 @@ const messages = ref([
 
 const inputMessage = ref('')
 const isLoading = ref(false)
+const currentYear = ref(new Date().getFullYear())
+const userId = ref('admin_' + new Date().getTime())
+const availableYears = ref([2022, 2023, 2024, 2025, 2026])
+
+// 计算属性
+const chatCount = computed(() => messages.value.length)
+
+// 格式化消息内容，支持换行和特殊字符
+const formatMessage = (content) => {
+  if (!content) return ''
+  return content.replace(/\n/g, '<br>')
+}
 
 const quickQuestions = [
-  '2024届就业率是多少？',
-  '各专业就业分布情况',
-  '生成年度数据分析报告',
-  '预测下一届升学趋势',
-  '哪些班级就业率最高？'
+  `${currentYear.value}届就业率是多少？`,
+  '分析各专业就业情况',
+  `生成${currentYear.value}年度数据分析报告`,
+  '预测下一年就业趋势',
+  '主要就业行业有哪些？'
 ]
+
+// 加载历史聊天记录
+const loadChatHistory = async () => {
+  try {
+    const response = await getChatHistory(userId.value)
+    if (response.code === 200 && response.data && response.data.length > 0) {
+      messages.value = response.data.map(msg => ({
+        ...msg,
+        time: new Date(msg.createTime).toLocaleTimeString()
+      }))
+      // 滚动到底部
+      setTimeout(() => {
+        const chatBody = document.querySelector('.chat-body')
+        if (chatBody) {
+          chatBody.scrollTop = chatBody.scrollHeight
+        }
+      }, 100)
+    }
+  } catch (error) {
+    console.error('加载聊天历史失败:', error)
+  }
+}
 
 const handleSend = async () => {
   if (!inputMessage.value.trim()) return
-  
-  messages.value.push({
-    id: Date.now(),
-    role: 'user',
-    content: inputMessage.value,
-    time: new Date().toLocaleTimeString()
-  })
-  
+
   const tempMessage = inputMessage.value
   inputMessage.value = ''
   isLoading.value = true
-  
-  await new Promise(resolve => setTimeout(resolve, 1500))
-  
-  isLoading.value = false
-  
-  const responses = [
-    `好的，关于"${tempMessage}"，我来为您分析...\n\n基于数据分析，2024届总体就业率达到95.5%，较去年提升了1.3个百分点。其中软件工程专业就业率最高，达到98.2%。建议关注计算机科学专业，该专业升学率增长明显，已达到42%。`,
-    `根据您的问题，以下是分析结果：\n\n1. 就业率趋势：近三年持续上升，年均增长约1.5%\n2. 行业分布：互联网占比35%，金融占比25%，制造业占比20%\n3. 地域分布：一线城市占比60%，新一线城市占比25%\n\n如需详细报告，我可以为您生成完整的数据分析文档。`,
-    `分析完成！\n\n综合来看，当前毕业生就业形势良好，但仍有以下几点值得关注：\n- 自主创业比例偏低，仅占5%\n- 部分专业存在结构性就业困难\n- 升学竞争日益激烈\n\n建议加大创业扶持力度，优化专业设置。`,
-    `收到您的请求！\n\n根据历史数据预测，下一届毕业生就业率预计将保持在95%以上，升学率有望突破40%。主要增长点可能来自人工智能、大数据等新兴领域。`
-  ]
-  
+
+  // 添加用户消息
   messages.value.push({
-    id: Date.now() + 1,
-    role: 'ai',
-    content: responses[Math.floor(Math.random() * responses.length)],
+    id: Date.now(),
+    role: 'user',
+    content: tempMessage,
     time: new Date().toLocaleTimeString()
   })
+
+  try {
+    const response = await aiChat({
+      userId: userId.value,
+      content: tempMessage,
+      year: currentYear.value,
+      messageType: 'general'
+    })
+
+    if (response.code === 200) {
+      // 添加AI回复
+      messages.value.push({
+        id: Date.now() + 1,
+        role: 'ai',
+        content: response.data,
+        time: new Date().toLocaleTimeString()
+      })
+    } else {
+      ElMessage.error(response.message || 'AI回复失败')
+      // 移除用户发送的消息
+      messages.value.pop()
+    }
+  } catch (error) {
+    console.error('AI聊天失败:', error)
+    ElMessage.error('AI聊天失败，请稍后重试')
+    // 移除用户发送的消息
+    messages.value.pop()
+  } finally {
+    isLoading.value = false
+  }
 }
 
 const handleQuickQuestion = (question) => {
-  inputMessage.value = question
+  // 更新问题中的年份
+  const updatedQuestion = question.replace(/\d{4}/, currentYear.value.toString())
+  inputMessage.value = updatedQuestion
   handleSend()
 }
+
+// 生成特定类型的分析
+const generateAnalysis = async (type) => {
+  const analysisNames = {
+    employment: '就业分析',
+    major: '专业分析',
+    prediction: '趋势预测',
+    report: '年度报告'
+  }
+
+  const question = `生成${currentYear.value}年${analysisNames[type]}`
+
+  // 添加用户请求
+  messages.value.push({
+    id: Date.now(),
+    role: 'user',
+    content: question,
+    time: new Date().toLocaleTimeString()
+  })
+
+  isLoading.value = true
+
+  try {
+    let response
+    const data = {
+      userId: userId.value,
+      year: currentYear.value
+    }
+
+    switch (type) {
+      case 'employment':
+        response = await generateEmploymentAnalysis(data)
+        break
+      case 'major':
+        response = await generateMajorAnalysis(data)
+        break
+      case 'prediction':
+        response = await generatePredictionAnalysis(data)
+        break
+      case 'report':
+        response = await generateAnnualReport(data)
+        break
+    }
+
+    if (response.code === 200) {
+      messages.value.push({
+        id: Date.now() + 1,
+        role: 'ai',
+        content: response.data.summary || response.data,
+        time: new Date().toLocaleTimeString()
+      })
+    } else {
+      ElMessage.error(response.message || '分析失败')
+      // 移除用户发送的请求
+      messages.value.pop()
+    }
+  } catch (error) {
+    console.error('生成分析失败:', error)
+    ElMessage.error('生成分析失败，请稍后重试')
+    // 移除用户发送的请求
+    messages.value.pop()
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 切换年份
+const changeYear = async (year) => {
+  try {
+    const response = await getChatHistoryByYear(year)
+    if (response.code === 200) {
+      messages.value = response.data.map(msg => ({
+        ...msg,
+        time: new Date(msg.createTime).toLocaleTimeString()
+      }))
+      currentYear.value = year
+      ElMessage.success(`已切换到${year}年的数据`)
+    }
+  } catch (error) {
+    console.error('切换年份失败:', error)
+    ElMessage.error('切换年份失败')
+  }
+}
+
+// 导出聊天记录
+const exportChatHistory = () => {
+  const chatContent = messages.value.map(msg => {
+    return `[${msg.time}] ${msg.role === 'user' ? '用户' : 'AI'}：${msg.content}`
+  }).join('\n\n')
+
+  const blob = new Blob([chatContent], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `AI聊天记录_${new Date().toLocaleDateString()}.txt`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+// 清空聊天记录
+const clearChatHistory = async () => {
+  try {
+    await ElMessageBox.confirm('确定要清空聊天记录吗？此操作不可恢复！', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    // 这里可以调用后端API删除记录，目前只清空前端显示
+    messages.value = []
+    ElMessage.success('聊天记录已清空')
+  } catch {
+    // 用户取消
+  }
+}
+
+// 滚动到底部
+const scrollToBottom = () => {
+  setTimeout(() => {
+    const chatBody = document.querySelector('.chat-body')
+    if (chatBody) {
+      chatBody.scrollTop = chatBody.scrollHeight
+    }
+  }, 100)
+}
+
+// 监听消息变化，自动滚动到底部
+watch(messages, () => {
+  scrollToBottom()
+}, { deep: true })
+
+onMounted(() => {
+  loadChatHistory()
+})
 </script>
 
 <style scoped>
 .ai-page {
   padding: 20px;
+  background: #f8f9fa;
+  min-height: 100vh;
 }
 
 .content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 20px;
+  padding: 0 0 15px 0;
+  border-bottom: 2px solid #e9ecef;
 }
 
 .content-header h2 {
-  color: #333;
+  color: #2c3e50;
+  font-size: 24px;
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .ai-container {
@@ -173,6 +466,8 @@ const handleQuickQuestion = (question) => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  height: 600px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
 .chat-header {
@@ -180,30 +475,43 @@ const handleQuickQuestion = (question) => {
   align-items: center;
   gap: 15px;
   padding: 20px;
-  border-bottom: 1px solid #eee;
-  margin-bottom: 15px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 8px 8px 0 0;
 }
 
 .ai-avatar {
   font-size: 48px;
+  background: rgba(255, 255, 255, 0.2);
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
 }
 
 .ai-info h3 {
   margin: 0 0 5px 0;
-  color: #333;
+  font-size: 20px;
 }
 
 .ai-info p {
-  margin: 0;
-  color: #666;
+  margin: 0 0 10px 0;
+  opacity: 0.9;
   font-size: 14px;
+}
+
+.ai-status {
+  display: flex;
+  align-items: center;
 }
 
 .chat-body {
   flex: 1;
-  max-height: 400px;
   overflow-y: auto;
-  padding: 0 20px;
+  padding: 20px;
+  background: white;
 }
 
 .message-list {
@@ -215,11 +523,18 @@ const handleQuickQuestion = (question) => {
 .message {
   display: flex;
   gap: 12px;
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .message-avatar {
   font-size: 32px;
   flex-shrink: 0;
+  align-self: flex-start;
 }
 
 .message-content {
@@ -231,11 +546,14 @@ const handleQuickQuestion = (question) => {
   border-radius: 12px;
   font-size: 14px;
   line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .ai-message .message-text {
   background: #f5f7fa;
   color: #333;
+  border: 1px solid #e9ecef;
 }
 
 .user-message .message-text {
@@ -248,6 +566,7 @@ const handleQuickQuestion = (question) => {
   font-size: 12px;
   color: #999;
   margin-top: 5px;
+  text-align: right;
 }
 
 .loading-message {
@@ -258,6 +577,7 @@ const handleQuickQuestion = (question) => {
   background: #f5f7fa;
   border-radius: 12px;
   color: #666;
+  justify-content: center;
 }
 
 .loading-dots {
@@ -275,6 +595,7 @@ const handleQuickQuestion = (question) => {
 
 .dot:nth-child(1) { animation-delay: -0.32s; }
 .dot:nth-child(2) { animation-delay: -0.16s; }
+.dot:nth-child(3) { animation-delay: 0s; }
 
 @keyframes loading {
   0%, 80%, 100% { transform: scale(0); }
@@ -285,8 +606,8 @@ const handleQuickQuestion = (question) => {
   display: flex;
   gap: 12px;
   padding: 20px;
-  border-top: 1px solid #eee;
-  margin-top: 15px;
+  background: #f8f9fa;
+  border-top: 1px solid #e9ecef;
 }
 
 .chat-input :deep(.el-input) {
@@ -295,59 +616,113 @@ const handleQuickQuestion = (question) => {
 
 .quick-actions {
   width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.quick-actions h4 {
-  margin-bottom: 15px;
-  color: #333;
+.quick-section {
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.quick-section h4 {
+  margin: 0 0 15px 0;
+  color: #2c3e50;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quick-section h4::before {
+  content: '';
+  width: 4px;
+  height: 20px;
+  background: #667eea;
+  border-radius: 2px;
 }
 
 .quick-buttons {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .quick-buttons :deep(.el-button) {
-  background: #f5f7fa;
-  border-color: #e4e7ed;
-  color: #606266;
+  background: #f8f9fa;
+  border-color: #e9ecef;
+  color: #495057;
+  font-size: 13px;
 }
 
-.ai-features {
-  margin-top: 30px;
+.quick-buttons :deep(.el-button:hover) {
+  background: #667eea;
+  border-color: #667eea;
+  color: white;
+  transform: translateY(-1px);
+  transition: all 0.3s ease;
 }
 
-.ai-features h4 {
-  margin-bottom: 20px;
-  color: #333;
+.tips-section {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+  padding: 15px;
+  border-radius: 8px;
 }
 
-.feature-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-}
-
-.feature-card {
-  text-align: center;
-  padding: 25px;
-}
-
-.feature-icon {
-  font-size: 48px;
-  margin-bottom: 15px;
-}
-
-.feature-card h5 {
+.tips-section h4 {
   margin: 0 0 10px 0;
-  color: #333;
+  font-size: 16px;
 }
 
-.feature-card p {
-  margin: 0;
-  color: #666;
-  font-size: 14px;
-  line-height: 1.5;
+.tips-content {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.tips-content p {
+  margin: 0 0 5px 0;
+  opacity: 0.9;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .ai-container {
+    flex-direction: column;
+  }
+
+  .quick-actions {
+    width: 100%;
+  }
+
+  .header-actions {
+    flex-wrap: wrap;
+  }
+
+  .chat-body {
+    max-height: 400px;
+  }
+}
+
+/* 滚动条样式 */
+.chat-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-body::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.chat-body::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 3px;
+}
+
+.chat-body::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 </style>
