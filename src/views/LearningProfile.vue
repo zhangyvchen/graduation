@@ -1,4 +1,3 @@
-<!-- src/views/LearningProfile.vue -->
 <template>
   <div class="learning-page">
     <DataStory :text="storyText" @regenerate="refreshStory" />
@@ -40,7 +39,7 @@
         </div>
       </el-card>
       <el-card class="stat-card">
-        <div class="stat-icon">🏅</div>
+        <div class="stat-icon"></div>
         <div class="stat-info">
           <div class="stat-value">{{ stats.competitionCount || 156 }}</div>
           <div class="stat-label">竞赛获奖总数</div>
@@ -51,7 +50,7 @@
     <div class="charts-grid">
       <el-card class="chart-card" :loading="loading">
         <template #header>
-          <span>📊 平均绩点分布</span>
+          <span> 平均绩点分布</span>
           <el-tag size="small" type="info">GPA区间</el-tag>
         </template>
         <div ref="gpaChart" class="chart"></div>
@@ -75,7 +74,7 @@
 
       <el-card class="chart-card">
         <template #header>
-          <span>🏅 竞赛获奖统计</span>
+          <span> 竞赛获奖统计</span>
           <el-tag size="small" type="info">获奖总览</el-tag>
         </template>
         <div ref="competitionChart" class="chart"></div>
@@ -87,8 +86,7 @@
 <script setup>
 import { ref, onMounted, nextTick, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
-import { getLearningByYear } from '../api/learning'
-import { getDestinationYears } from '../api/destination'
+import { getLearningByYear, getLearningYears } from '../api/learning'
 import DataStory from '../components/DataStory.vue'
 import DanmakuLayer from '../components/DanmakuLayer.vue'
 import { generateStory } from '../utils/storyGenerator'
@@ -133,16 +131,22 @@ const onCollegeChange = () => refreshData()
 
 const loadYears = async () => {
   try {
-    const res = await getDestinationYears()
-    if (res.code === 200 && res.data) {
+    const res = await getLearningYears()
+    if (res.code === 200 && res.data && res.data.length > 0) {
       years.value = res.data
-      if (years.value.length > 0 && !selectedYear.value) {
+
+      console.log('获取到的年份列表:', years.value)
+
+      if (!selectedYear.value) {
         selectedYear.value = years.value[0]
+        console.log('默认选择年份:', selectedYear.value)
       }
+    } else {
+      throw new Error('无数据')
     }
   } catch (error) {
-    console.error('获取年份列表失败:', error)
-    years.value = [2024, 2023, 2022, 2021]
+    console.error('获取学习画像年份列表失败:', error)
+    years.value = [2027, 2024, 2023, 2022, 2021]
     if (!selectedYear.value) {
       selectedYear.value = years.value[0]
     }
@@ -151,11 +155,21 @@ const loadYears = async () => {
 
 const loadStats = async (year) => {
   try {
+    console.log('正在加载年份', year, '的学习统计数据...')
     const res = await getLearningByYear(year)
+
+    console.log('API响应:', res)
+
     if (res.code === 200 && res.data) {
       statsData.value = res.data
       stats.value.competitionCount = res.data.competitionTotal || 0
+
+      console.log('统计数据:', statsData.value)
+      console.log('竞赛获奖总数:', stats.value.competitionCount)
+
       return res.data
+    } else {
+      console.warn('返回数据为空或状态码错误:', res)
     }
   } catch (error) {
     console.error('获取学习统计数据失败:', error)
@@ -191,6 +205,24 @@ const renderGpaChart = () => {
   const data = statsData.value.gpaData || []
   const labels = ['<2.0', '2.0-2.5', '2.5-3.0', '3.0-3.5', '3.5-4.0']
 
+  console.log('📊 GPA图表数据:', data, '标签:', labels)
+
+  if (data.length === 0) {
+    console.warn('️ GPA数据为空，使用默认数据')
+    gpaInstance.setOption({
+      title: {
+        text: '暂无数据',
+        left: 'center',
+        top: 'center',
+        textStyle: { fontSize: 16, color: '#999' }
+      },
+      xAxis: { type: 'category', data: labels },
+      yAxis: { type: 'value' },
+      series: [{ type: 'line', data: [0, 0, 0, 0, 0] }]
+    })
+    return
+  }
+
   gpaInstance.setOption({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (p) => `<strong>${p[0].name}</strong><br/>人数：<strong>${p[0].value}</strong>` },
     grid: { left: '3%', right: '4%', bottom: '3%', top: '5%', containLabel: true },
@@ -204,7 +236,7 @@ const renderGpaChart = () => {
       itemStyle: { color: '#667eea' },
       label: { show: true, position: 'top', formatter: '{c}人' }
     }]
-  })
+  }, true)
   gpaInstance.resize()
 }
 
@@ -214,6 +246,24 @@ const renderLibraryChart = () => {
 
   const data = statsData.value.libraryData || []
   const labels = ['0-10本', '11-20本', '21-30本', '>30本']
+
+  console.log('📖 图书馆图表数据:', data, '标签:', labels)
+
+  if (data.length === 0) {
+    console.warn('⚠️ 图书馆数据为空，使用默认数据')
+    libraryInstance.setOption({
+      title: {
+        text: '暂无数据',
+        left: 'center',
+        top: 'center',
+        textStyle: { fontSize: 16, color: '#999' }
+      },
+      xAxis: { type: 'category', data: labels },
+      yAxis: { type: 'value' },
+      series: [{ type: 'bar', data: [0, 0, 0, 0] }]
+    })
+    return
+  }
 
   libraryInstance.setOption({
     tooltip: { trigger: 'axis', formatter: (p) => `<strong>${p[0].name}</strong><br/>人数：<strong>${p[0].value}</strong>` },
@@ -225,7 +275,7 @@ const renderLibraryChart = () => {
       itemStyle: { borderRadius: [4, 4, 0, 0], color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{offset:0,color:'#4facfe'},{offset:1,color:'#00f2fe'}]) },
       label: { show: true, position: 'top', formatter: '{c}人' }
     }]
-  })
+  }, true)
   libraryInstance.resize()
 }
 
@@ -234,6 +284,28 @@ const renderLabChart = () => {
   if (!labInstance) labInstance = echarts.init(labChart.value)
 
   const data = statsData.value.labData || []
+
+  console.log('🔬 实验室图表数据:', data)
+
+  if (data.length === 0) {
+    console.warn('⚠️ 实验室数据为空，使用默认数据')
+    labInstance.setOption({
+      title: {
+        text: '暂无数据',
+        left: 'center',
+        top: 'center',
+        textStyle: { fontSize: 16, color: '#999' }
+      },
+      series: [{
+        type: 'pie',
+        radius: ['70%', '80%'],
+        silent: true,
+        data: [{ value: 1, name: '', itemStyle: { color: '#e8ecf1' } }]
+      }]
+    })
+    return
+  }
+
   const colors = ['#43e97b', '#fa709a']
 
   labInstance.setOption({
@@ -246,7 +318,7 @@ const renderLabChart = () => {
       label: { show: true, formatter: '{b}\n{d}%' },
       data: data.map((item, index) => ({ ...item, itemStyle: { color: colors[index % colors.length] } }))
     }]
-  })
+  }, true)
   labInstance.resize()
 }
 
@@ -255,6 +327,9 @@ const renderCompetitionChart = () => {
   if (!competitionInstance) competitionInstance = echarts.init(competitionChart.value)
 
   const compData = statsData.value.competitionData || []
+  const total = statsData.value.competitionTotal || 0
+
+  console.log(' 竞赛图表数据:', compData, '总数:', total)
 
   if (compData.length > 0) {
     const colors = ['#e74c3c', '#f39c12', '#3498db', '#95a5a6', '#667eea']
@@ -273,9 +348,8 @@ const renderCompetitionChart = () => {
           itemStyle: { color: colors[i % colors.length] }
         }))
       }]
-    })
+    }, true)
   } else {
-    const total = statsData.value.competitionTotal || 0
     competitionInstance.setOption({
       title: {
         text: `总获奖: ${total}人`,
@@ -289,7 +363,7 @@ const renderCompetitionChart = () => {
         silent: true,
         data: [{ value: 1, name: '', itemStyle: { color: '#e8ecf1' } }]
       }]
-    })
+    }, true)
   }
   competitionInstance.resize()
 }
