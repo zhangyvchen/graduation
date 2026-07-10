@@ -1,4 +1,3 @@
-<!-- src/views/Home.vue -->
 <template>
   <div class="home-page">
     <div class="year-selector">
@@ -58,6 +57,10 @@ import { getOverview } from '../api/graduationData'
 import * as echarts from 'echarts'
 import { ref, onMounted, watch, nextTick } from 'vue'
 
+const selectedYear = ref(2024)
+const years = ref([2020, 2021, 2022, 2023, 2024, 2025, 2026])
+const loading = ref(false)
+
 const overview = ref({
   totalGraduates: 0,
   employmentRate: 0,
@@ -68,17 +71,6 @@ const trendChartRef = ref(null)
 let pieChart = null
 let trendChart = null
 const allYearData = ref([])
-const years = ref([2024, 2023, 2022, 2021])
-const selectedYear = ref(2024)
-const loading = ref(false)
-
-const refreshData = async () => {
-  loading.value = true
-  await loadOverview()
-  loading.value = false
-}
-
-const onYearChange = () => {}
 
 onMounted(async () => {
   await loadOverview()
@@ -87,9 +79,14 @@ onMounted(async () => {
 })
 
 const loadOverview = async () => {
-  const res = await getOverview(selectedYear.value)
-  if (res.code === 200 && res.data) {
-    overview.value = res.data
+  loading.value = true
+  try {
+    const res = await getOverview(selectedYear.value)
+    if (res.code === 200 && res.data) {
+      overview.value = res.data
+    }
+  } finally {
+    loading.value = false
   }
 }
 
@@ -100,6 +97,20 @@ const loadAllYears = async () => {
     if (res.code === 200 && res.data) data.push(res.data)
   }
   allYearData.value = data
+}
+
+const onYearChange = async () => {
+  await loadOverview()
+  updatePieChart()
+}
+
+const refreshData = async () => {
+  await loadOverview()
+  await loadAllYears()
+  nextTick(() => {
+    updatePieChart()
+    updateTrendChart()
+  })
 }
 
 watch(selectedYear, async () => {

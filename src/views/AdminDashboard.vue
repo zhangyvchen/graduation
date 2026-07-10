@@ -52,11 +52,23 @@
         <template #header>
           <span>最近操作</span>
         </template>
-        <el-table :data="activities" border>
-          <el-table-column prop="time" label="时间" width="150" />
-          <el-table-column prop="action" label="操作" />
-          <el-table-column prop="user" label="操作者" width="100" />
+        <el-table :data="activities" border v-loading="loading">
+          <el-table-column prop="createdAt" label="时间" width="180">
+            <template #default="scope">
+              {{ formatDateTime(scope.row.createdAt) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="operation" label="操作" />
+          <el-table-column prop="operator" label="操作者" width="100" />
+          <el-table-column prop="module" label="模块" width="100">
+            <template #default="scope">
+              <el-tag size="small">{{ scope.row.module || '-' }}</el-tag>
+            </template>
+          </el-table-column>
         </el-table>
+        <div v-if="activities.length === 0 && !loading" class="empty-tip">
+          暂无操作记录
+        </div>
       </el-card>
     </div>
   </div>
@@ -65,25 +77,63 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { getRecentLogs } from '../api/operationLog'
+import { getAllBatch } from '../api/batch'
+import { getAllStudents } from '../api/student'
 
 const router = useRouter()
+const loading = ref(false)
 
 const stats = ref({
-  totalBatches: 4,
-  totalStudents: 1200,
-  totalTemplates: 3,
-  totalVerified: 856
+  totalBatches: 0,
+  totalStudents: 0,
+  totalTemplates: 0,
+  totalVerified: 0
 })
 
-const activities = ref([
-  { id: 1, time: '2024-01-15 10:30', action: '新增批次 2024届', user: 'admin' },
-  { id: 2, time: '2024-01-15 09:15', action: '导入学生名单（50人）', user: 'admin' },
-  { id: 3, time: '2024-01-14 16:45', action: '创建报告模板', user: 'admin' },
-  { id: 4, time: '2024-01-14 14:20', action: '删除学生记录', user: 'admin' },
-  { id: 5, time: '2024-01-13 11:00', action: '导出Excel数据', user: 'admin' }
-])
+const activities = ref([])
+
+const formatDateTime = (dateTime) => {
+  if (!dateTime) return '-'
+  return dateTime.replace('T', ' ').substring(0, 19)
+}
+
+const fetchRecentLogs = async () => {
+  loading.value = true
+  try {
+    const res = await getRecentLogs(10)
+    if (res.code === 200) {
+      activities.value = res.data
+    }
+  } catch (error) {
+    console.error('获取操作日志失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+const fetchStats = async () => {
+  try {
+    const [batchRes, studentRes] = await Promise.all([
+      getAllBatch(),
+      getAllStudents()
+    ])
+    
+    if (batchRes.code === 200) {
+      stats.value.totalBatches = batchRes.data.length
+    }
+    
+    if (studentRes.code === 200) {
+      stats.value.totalStudents = studentRes.data.length
+    }
+  } catch (error) {
+    console.error('获取统计数据失败:', error)
+  }
+}
 
 onMounted(() => {
+  fetchRecentLogs()
+  fetchStats()
 })
 </script>
 
@@ -167,5 +217,11 @@ onMounted(() => {
 
 .recent-activities {
   margin-top: 20px;
+}
+
+.empty-tip {
+  text-align: center;
+  padding: 30px;
+  color: #999;
 }
 </style>
