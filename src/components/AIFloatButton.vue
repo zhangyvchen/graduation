@@ -1,46 +1,97 @@
 <template>
-  <div class="ai-float-container">
+  <div 
+    class="ai-float-container"
+    :style="containerStyle"
+    @mousedown="startDrag"
+    @touchstart="startDrag"
+  >
     <div 
       class="ai-float-btn" 
-      :class="{ 'active': isOpen }"
+      :class="{ 'active': isOpen, 'dragging': isDragging }"
       @click="toggleChat"
     >
-      <span class="ai-icon">🤖</span>
+      <div class="btn-ring"></div>
+      <div class="btn-inner">
+        <img class="ai-icon" :src="aiAvatarUrl" alt="AI助手" />
+      </div>
       <span class="ai-badge" v-if="unreadCount > 0">{{ unreadCount }}</span>
     </div>
     
-    <transition name="slide-up">
+    <transition name="chat-panel">
       <div v-if="isOpen" class="ai-chat-panel">
         <div class="chat-header">
           <div class="chat-title">
-            <span class="chat-icon">🤖</span>
-            <span>AI 助手</span>
+            <div class="avatar-wrapper">
+              <img class="avatar-icon" :src="aiAvatarHeaderUrl" alt="AI助手" />
+              <div class="status-dot"></div>
+            </div>
+            <div class="title-text">
+              <span class="title-name">AI 智能助手</span>
+              <span class="title-status">在线</span>
+            </div>
           </div>
-          <button class="close-btn" @click="toggleChat">✕</button>
+          <div class="header-actions">
+            <button class="minimize-btn" @click="toggleChat">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+          </div>
         </div>
         
-        <div class="chat-messages">
-          <div class="message ai-message" v-for="msg in messages" :key="msg.id">
-            <span class="message-avatar">{{ msg.role === 'ai' ? '🤖' : '👤' }}</span>
-            <span class="message-text">{{ msg.content }}</span>
+        <div class="chat-messages" ref="messagesContainer">
+          <div class="message" :class="msg.role === 'ai' ? 'ai-message' : 'user-message'" v-for="msg in messages" :key="msg.id">
+            <div class="message-avatar" v-if="msg.role === 'ai'">
+              <img :src="aiAvatarMsgUrl" alt="AI助手" />
+            </div>
+            <div class="message-avatar" v-else>
+              <svg viewBox="0 0 32 32" fill="none">
+                <circle cx="16" cy="16" r="14" fill="#e8eef5"/>
+                <circle cx="16" cy="14" r="5" fill="#667eea"/>
+                <path d="M8 26 Q16 30 24 26" stroke="#667eea" stroke-width="2" stroke-linecap="round" fill="none"/>
+              </svg>
+            </div>
+            <div class="message-content">
+              <span class="message-text">{{ msg.content }}</span>
+              <span class="message-time">{{ msg.time || formatTime() }}</span>
+            </div>
           </div>
           <div v-if="isLoading" class="loading-indicator">
-            <span class="dot"></span>
-            <span class="dot"></span>
-            <span class="dot"></span>
+            <div class="loading-bubble">
+              <div class="loading-dots">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+              </div>
+            </div>
           </div>
         </div>
         
         <div class="chat-input">
-          <input 
-            v-model="inputText" 
-            placeholder="输入问题..." 
-            @keyup.enter="sendMessage"
-            class="input-field"
-          />
-          <button class="send-btn" @click="sendMessage" :disabled="isLoading">
-            <span>发送</span>
-          </button>
+          <div class="input-wrapper">
+            <input 
+              v-model="inputText" 
+              placeholder="输入问题..." 
+              @keyup.enter="sendMessage"
+              class="input-field"
+            />
+            <button class="send-btn" @click="sendMessage" :disabled="isLoading">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ 'sending': isLoading }">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+          <div class="quick-actions">
+            <button 
+              v-for="action in quickActions" 
+              :key="action.text"
+              class="quick-action-btn"
+              @click="sendQuickAction(action.text)"
+            >
+              {{ action.text }}
+            </button>
+          </div>
         </div>
       </div>
     </transition>
@@ -48,39 +99,150 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { aiChat, getChatHistory } from '../api/admin'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 
 const isOpen = ref(false)
 const isLoading = ref(false)
+const isDragging = ref(false)
 const unreadCount = ref(0)
 const inputText = ref('')
-const userId = ref('admin_' + new Date().getTime())
+const userId = ref('user_' + new Date().getTime())
+const messagesContainer = ref(null)
+
+const aiAvatarUrl = ref('/static/AI_1.png')
+const aiAvatarHeaderUrl = ref('/static/AI_2.png')
+const aiAvatarMsgUrl = ref('/static/AI_3.png')
+
+const position = ref({
+  x: window.innerWidth - 80,
+  y: window.innerHeight - 140
+})
+
+const startX = ref(0)
+const startY = ref(0)
+const startPosX = ref(0)
+const startPosY = ref(0)
+
+const quickActions = ref([
+  { text: '就业分析' },
+  { text: '趋势预测' },
+  { text: '专业建议' },
+  { text: '年度报告' }
+])
+
+const containerStyle = computed(() => ({
+  left: `${position.value.x}px`,
+  top: `${position.value.y}px`
+}))
 
 const messages = ref([
   {
     id: 1,
     role: 'ai',
-    content: '您好！我是毕业数据报告系统的 AI 助手，有什么可以帮您的？'
+    content: '您好！我是毕业数据报告系统的 AI 助手，有什么可以帮您的？',
+    time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
   }
 ])
 
+const formatTime = () => {
+  return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
+
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    }
+  })
+}
+
 const toggleChat = () => {
+  if (isDragging.value) return
   isOpen.value = !isOpen.value
   if (isOpen.value) {
     unreadCount.value = 0
     loadChatHistory()
+    scrollToBottom()
+  }
+}
+
+const startDrag = (e) => {
+  if (isOpen.value) return
+  
+  isDragging.value = true
+  const event = e.touches ? e.touches[0] : e
+  startX.value = event.clientX
+  startY.value = event.clientY
+  startPosX.value = position.value.x
+  startPosY.value = position.value.y
+  
+  document.addEventListener('mousemove', onDrag)
+  document.addEventListener('mouseup', stopDrag)
+  document.addEventListener('touchmove', onDrag)
+  document.addEventListener('touchend', stopDrag)
+}
+
+const onDrag = (e) => {
+  if (!isDragging.value) return
+  
+  const event = e.touches ? e.touches[0] : e
+  const deltaX = event.clientX - startX.value
+  const deltaY = event.clientY - startY.value
+  
+  let newX = startPosX.value + deltaX
+  let newY = startPosY.value + deltaY
+  
+  const maxX = window.innerWidth - 56
+  const maxY = window.innerHeight - 56
+  
+  newX = Math.max(10, Math.min(maxX, newX))
+  newY = Math.max(10, Math.min(maxY, newY))
+  
+  position.value = { x: newX, y: newY }
+}
+
+const stopDrag = () => {
+  isDragging.value = false
+  savePosition()
+  
+  document.removeEventListener('mousemove', onDrag)
+  document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('touchmove', onDrag)
+  document.removeEventListener('touchend', stopDrag)
+}
+
+const savePosition = () => {
+  localStorage.setItem('aiFloatPosition', JSON.stringify(position.value))
+}
+
+const loadPosition = () => {
+  const saved = localStorage.getItem('aiFloatPosition')
+  if (saved) {
+    try {
+      const savedPos = JSON.parse(saved)
+      const maxX = window.innerWidth - 56
+      const maxY = window.innerHeight - 56
+      
+      position.value = {
+        x: Math.max(10, Math.min(maxX, savedPos.x)),
+        y: Math.max(10, Math.min(maxY, savedPos.y))
+      }
+    } catch (e) {
+      console.error('加载位置失败:', e)
+    }
   }
 }
 
 const loadChatHistory = async () => {
   try {
-    const response = await getChatHistory(userId.value)
-    if (response.code === 200 && response.data && response.data.length > 0) {
-      messages.value = response.data.map(msg => ({
+    const response = await fetch(`/api/ai/chat-history/${userId.value}`)
+    const data = await response.json()
+    if (data.code === 200 && data.data && data.data.length > 0) {
+      messages.value = data.data.map(msg => ({
         id: msg.id,
         role: msg.role,
-        content: msg.role === 'ai' ? msg.response || msg.content : msg.content
+        content: msg.role === 'ai' ? msg.response || msg.content : msg.content,
+        time: formatTime()
       }))
     }
   } catch (error) {
@@ -94,17 +256,20 @@ const sendMessage = async () => {
   messages.value.push({
     id: Date.now(),
     role: 'user',
-    content: inputText.value
+    content: inputText.value,
+    time: formatTime()
   })
   
   inputText.value = ''
   isLoading.value = true
+  scrollToBottom()
   
   const aiMessageId = Date.now() + 1
   messages.value.push({
     id: aiMessageId,
     role: 'ai',
-    content: ''
+    content: '',
+    time: formatTime()
   })
   
   try {
@@ -136,6 +301,7 @@ const sendMessage = async () => {
           const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
           if (aiMsgIndex !== -1) {
             messages.value[aiMsgIndex].content += trimmedLine
+            scrollToBottom()
           }
         }
       }
@@ -153,78 +319,174 @@ const sendMessage = async () => {
   }
 }
 
+const sendQuickAction = (text) => {
+  inputText.value = text
+  sendMessage()
+}
+
+const handleResize = () => {
+  const maxX = window.innerWidth - 56
+  const maxY = window.innerHeight - 56
+  
+  position.value = {
+    x: Math.min(maxX, position.value.x),
+    y: Math.min(maxY, position.value.y)
+  }
+}
+
 onMounted(() => {
+  loadPosition()
   loadChatHistory()
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  document.removeEventListener('mousemove', onDrag)
+  document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('touchmove', onDrag)
+  document.removeEventListener('touchend', stopDrag)
 })
 </script>
 
 <style scoped>
 .ai-float-container {
   position: fixed;
-  bottom: 30px;
-  right: 30px;
   z-index: 9999;
+  cursor: grab;
+}
+
+.ai-float-container:active {
+  cursor: grabbing;
 }
 
 .ai-float-btn {
-  width: 60px;
-  height: 60px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease, background 0.2s ease;
   position: relative;
   z-index: 10000;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.ai-float-btn:hover {
-  transform: scale(1.15);
-  box-shadow: 0 8px 35px rgba(102, 126, 234, 0.5);
+.btn-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  animation: ring-pulse 2s infinite;
+  opacity: 0.6;
 }
 
-.ai-float-btn.active {
-  transform: scale(1.1) rotate(135deg);
-  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+@keyframes ring-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+.btn-inner {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.35);
+  position: relative;
+  z-index: 1;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .ai-icon {
-  font-size: 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.ai-float-btn:hover .btn-inner {
+  transform: scale(1.05);
+  box-shadow: 0 12px 35px rgba(102, 126, 234, 0.45);
+}
+
+.ai-float-btn.active .btn-inner {
+  transform: scale(1.05) rotate(180deg);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.ai-float-btn.active .ai-icon {
+  filter: brightness(0) invert(1);
+}
+
+.ai-float-btn.dragging .btn-inner {
+  transform: scale(1.15);
+  box-shadow: 0 15px 40px rgba(102, 126, 234, 0.5);
 }
 
 .ai-badge {
   position: absolute;
-  top: -5px;
-  right: -5px;
+  top: -2px;
+  right: -2px;
   min-width: 20px;
   height: 20px;
-  background: #f56c6c;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   color: #fff;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0 5px;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+  z-index: 2;
 }
 
 .ai-chat-panel {
-  width: 320px;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-  margin-bottom: 15px;
+  width: 420px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(24px);
+  border-radius: 24px;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  margin-bottom: 12px;
   overflow: hidden;
+  position: absolute;
+  bottom: 70px;
+  right: 0;
+  animation: panel-appear 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes panel-appear {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .chat-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
+  padding: 20px 24px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
 }
@@ -232,149 +494,325 @@ onMounted(() => {
 .chat-title {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
+}
+
+.avatar-wrapper {
+  position: relative;
+}
+
+.avatar-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.status-dot {
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  width: 12px;
+  height: 12px;
+  background: #22c55e;
+  border-radius: 50%;
+  border: 3px solid #667eea;
+  animation: status-blink 2s infinite;
+}
+
+@keyframes status-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.title-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.title-name {
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
-.chat-icon {
-  font-size: 20px;
+.title-status {
+  font-size: 12px;
+  opacity: 0.85;
+  margin-top: 2px;
 }
 
-.close-btn {
-  background: rgba(255, 255, 255, 0.2);
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.minimize-btn {
+  background: rgba(255, 255, 255, 0.15);
   border: none;
   color: #fff;
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   cursor: pointer;
-  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
 }
 
-.close-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
+.minimize-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.05);
 }
 
 .chat-messages {
-  max-height: 300px;
+  max-height: 450px;
   overflow-y: auto;
-  padding: 15px;
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 18px;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+}
+
+.chat-messages::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 .message {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: flex-start;
 }
 
 .message-avatar {
-  font-size: 24px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.message-avatar svg,
+.message-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-message {
+  flex-direction: row-reverse;
+}
+
+.user-message .message-avatar {
+  margin-left: 0;
+}
+
+.message-content {
+  flex: 1;
+  max-width: 78%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .message-text {
-  padding: 10px 14px;
-  border-radius: 12px;
+  display: inline-block;
+  padding: 14px 18px;
+  border-radius: 20px;
   font-size: 14px;
-  line-height: 1.5;
-  max-width: 75%;
+  line-height: 1.6;
+  word-break: break-word;
 }
 
 .ai-message .message-text {
-  background: #f5f7fa;
-  color: #333;
-  border-radius: 0 12px 12px 12px;
+  background: #fff;
+  color: #1f2937;
+  border-radius: 4px 20px 20px 20px;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid #f3f4f6;
 }
 
 .user-message .message-text {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
   margin-left: auto;
-  border-radius: 12px 0 12px 12px;
+  border-radius: 20px 4px 20px 20px;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+}
+
+.message-time {
+  font-size: 11px;
+  color: #9ca3af;
+  padding: 0 6px;
+}
+
+.ai-message .message-time {
+  align-self: flex-start;
+}
+
+.user-message .message-time {
+  align-self: flex-end;
 }
 
 .loading-indicator {
   display: flex;
-  gap: 5px;
-  padding: 10px 14px;
-  background: #f5f7fa;
-  border-radius: 0 12px 12px 12px;
-  align-self: flex-start;
+  align-items: center;
+  justify-content: flex-start;
 }
 
-.loading-indicator .dot {
+.loading-bubble {
+  background: #fff;
+  padding: 14px 20px;
+  border-radius: 4px 20px 20px 20px;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid #f3f4f6;
+}
+
+.loading-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.loading-dots .dot {
   width: 8px;
   height: 8px;
-  background: #667eea;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 50%;
-  animation: loading-dot 1.4s infinite ease-in-out both;
+  animation: loading-bounce 1.4s infinite ease-in-out both;
 }
 
-.loading-indicator .dot:nth-child(1) { animation-delay: -0.32s; }
-.loading-indicator .dot:nth-child(2) { animation-delay: -0.16s; }
+.loading-dots .dot:nth-child(1) { animation-delay: -0.32s; }
+.loading-dots .dot:nth-child(2) { animation-delay: -0.16s; }
 
-@keyframes loading-dot {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
+@keyframes loading-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+  40% { transform: scale(1); opacity: 1; }
 }
 
 .chat-input {
+  padding: 16px 24px;
+  background: #fff;
+  border-top: 1px solid #f3f4f6;
+}
+
+.input-wrapper {
   display: flex;
   gap: 10px;
-  padding: 15px;
-  border-top: 1px solid #eee;
 }
 
 .input-field {
   flex: 1;
-  padding: 10px 15px;
-  border: 1px solid #ddd;
-  border-radius: 20px;
+  padding: 14px 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 28px;
   font-size: 14px;
   outline: none;
-  transition: border-color 0.2s;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #f9fafb;
 }
 
 .input-field:focus {
   border-color: #667eea;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.12);
+}
+
+.input-field::placeholder {
+  color: #9ca3af;
 }
 
 .send-btn {
-  padding: 10px 20px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
   border: none;
-  border-radius: 20px;
+  color: #fff;
   cursor: pointer;
-  font-size: 14px;
-  transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
 }
 
 .send-btn:hover:not(:disabled) {
-  opacity: 0.9;
+  transform: scale(1.08);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.send-btn:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .send-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: all 0.3s ease;
+.send-btn .sending {
+  animation: spin 1s linear infinite;
 }
 
-.slide-up-enter-from,
-.slide-up-leave-to {
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.quick-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.quick-action-btn {
+  padding: 8px 18px;
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.quick-action-btn:hover {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: transparent;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.35);
+}
+
+.chat-panel-enter-active,
+.chat-panel-leave-active {
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chat-panel-enter-from,
+.chat-panel-leave-to {
   opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(20px) scale(0.95);
+}
+
+.chat-panel-enter-to,
+.chat-panel-leave-from {
+  opacity: 1;
+  transform: translateY(0) scale(1);
 }
 </style>
