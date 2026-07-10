@@ -6,6 +6,16 @@
         <h2>管理后台登录</h2>
         <p class="login-subtitle">请使用管理员账号登录系统</p>
       </div>
+      <div v-if="auth.state.isLoggedIn && auth.isAdmin()" class="logged-in-tip">
+        <el-alert title="您已登录" type="info" closable @close="handleCloseTip" style="margin-bottom: 20px;">
+          <template #default>
+            您当前以 <strong>{{ auth.state.user?.name }}</strong> 身份登录，是否需要切换账号？
+          </template>
+          <template #actions>
+            <el-button size="small" type="primary" @click="handleSwitchAccount">切换账号</el-button>
+          </template>
+        </el-alert>
+      </div>
       <el-form :model="loginForm" ref="loginFormRef" label-width="80px" class="login-form">
         <el-form-item label="用户名">
           <el-input v-model="loginForm.username" placeholder="请输入用户名" @keyup.enter="handleLogin" />
@@ -24,7 +34,9 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useAuth } from '../stores/auth'
+import { login } from '../api/admin'
 
 const router = useRouter()
 const auth = useAuth()
@@ -34,23 +46,48 @@ const loginForm = ref({
 })
 const isLoading = ref(false)
 
-const handleLogin = () => {
+const handleSwitchAccount = () => {
+  auth.logout()
+  ElMessage.info('已退出登录，请重新登录')
+}
+
+const handleCloseTip = () => {
+  router.push('/admin/dashboard')
+}
+
+const handleLogin = async () => {
   if (!loginForm.value.username || !loginForm.value.password) {
-    alert('请输入用户名和密码')
+    ElMessage.warning('请输入用户名和密码')
     return
   }
   
   isLoading.value = true
   
-  setTimeout(() => {
-    auth.login({
+  try {
+    const response = await login({
       username: loginForm.value.username,
-      name: loginForm.value.username,
-      role: 'admin'
+      password: loginForm.value.password
     })
     
-    router.push('/admin/dashboard')
-  }, 500)
+    if (response.code === 200 && response.data) {
+      const data = response.data
+      auth.login({
+        token: data.token,
+        id: data.id,
+        username: data.username,
+        name: data.name,
+        role: data.role
+      })
+      ElMessage.success('登录成功')
+      router.push('/admin/dashboard')
+    } else {
+      ElMessage.error(response.message || '登录失败')
+    }
+  } catch (error) {
+    ElMessage.error('网络错误或用户名密码错误')
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 
