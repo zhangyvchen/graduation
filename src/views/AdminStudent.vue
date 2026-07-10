@@ -15,7 +15,28 @@
         <el-option label="全部" value="" />
         <el-option v-for="batch in batches" :key="batch" :label="batch + '届'" :value="batch" />
       </el-select>
+      <el-select v-model="searchGender" placeholder="选择性别" style="width: 100px">
+        <el-option label="全部" value="" />
+        <el-option label="男" value="男" />
+        <el-option label="女" value="女" />
+      </el-select>
+      <el-select v-model="searchEmploymentStatus" placeholder="就业状态" style="width: 120px">
+        <el-option label="全部" value="" />
+        <el-option label="已就业" value="已就业" />
+        <el-option label="升学" value="升学" />
+        <el-option label="待就业" value="待就业" />
+        <el-option label="自主创业" value="自主创业" />
+      </el-select>
       <el-button @click="handleSearch">搜索</el-button>
+      <el-button @click="handleReset">重置</el-button>
+    </div>
+    
+    <div class="sort-bar">
+      <span class="sort-label">排序：</span>
+      <el-button :type="sortBy === 'name' ? 'primary' : ''" @click="setSort('name')">按姓名排序</el-button>
+      <el-button :type="sortBy === 'batchYear' ? 'primary' : ''" @click="setSort('batchYear')">按毕业年份排序</el-button>
+      <el-button :type="sortBy === 'studentId' ? 'primary' : ''" @click="setSort('studentId')">按学号排序</el-button>
+      <el-button v-if="sortBy" @click="clearSort">清除排序</el-button>
     </div>
     
     <el-table :data="studentList" border>
@@ -64,12 +85,12 @@
     />
     
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑学生' : '新增学生'" width="600px">
-      <el-form :model="formData" label-width="100px">
-        <el-form-item label="学号" required>
-          <el-input v-model="formData.studentId" placeholder="请输入学号" />
+      <el-form :model="formData" :rules="formRules" ref="formRef" label-width="100px">
+        <el-form-item label="学号" prop="studentId">
+          <el-input v-model="formData.studentId" placeholder="请输入学号（6-12位数字）" />
         </el-form-item>
-        <el-form-item label="姓名" required>
-          <el-input v-model="formData.name" placeholder="请输入姓名" />
+        <el-form-item label="姓名" prop="name">
+          <el-input v-model="formData.name" placeholder="请输入姓名（2-10个汉字）" />
         </el-form-item>
         <el-form-item label="性别">
           <el-radio-group v-model="formData.gender">
@@ -77,25 +98,25 @@
             <el-radio label="女">女</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="学院">
+        <el-form-item label="学院" prop="department">
           <el-input v-model="formData.department" placeholder="请输入学院" />
         </el-form-item>
-        <el-form-item label="专业" required>
+        <el-form-item label="专业" prop="major">
           <el-input v-model="formData.major" placeholder="请输入专业" />
         </el-form-item>
-        <el-form-item label="班级" required>
+        <el-form-item label="班级" prop="className">
           <el-input v-model="formData.className" placeholder="请输入班级" />
         </el-form-item>
-        <el-form-item label="批次" required>
+        <el-form-item label="批次" prop="batchYear">
           <el-select v-model="formData.batchYear" placeholder="选择批次">
             <el-option v-for="batch in batches" :key="batch" :label="batch + '届'" :value="batch" />
           </el-select>
         </el-form-item>
-        <el-form-item label="手机号">
-          <el-input v-model="formData.phone" placeholder="请输入手机号" />
+        <el-form-item label="手机号" prop="phone">
+          <el-input v-model="formData.phone" placeholder="请输入11位手机号" />
         </el-form-item>
-        <el-form-item label="邮箱">
-          <el-input v-model="formData.email" placeholder="请输入邮箱" />
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="formData.email" placeholder="请输入邮箱地址" />
         </el-form-item>
         <el-form-item label="就业状态">
           <el-select v-model="formData.employmentStatus" placeholder="选择就业状态">
@@ -154,13 +175,18 @@ const batches = ref([2024])
 const studentList = ref([])
 const searchKeyword = ref('')
 const searchBatch = ref('')
+const searchGender = ref('')
+const searchEmploymentStatus = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
+const sortBy = ref('')
+const sortOrder = ref('asc')
 
 const dialogVisible = ref(false)
 const importVisible = ref(false)
 const isEdit = ref(false)
+const formRef = ref(null)
 const formData = ref({
   id: '',
   studentId: '',
@@ -174,6 +200,35 @@ const formData = ref({
   email: '',
   employmentStatus: ''
 })
+
+const formRules = {
+  studentId: [
+    { required: true, message: '请输入学号', trigger: 'blur' },
+    { pattern: /^\d{6,12}$/, message: '学号必须是6-12位数字', trigger: 'blur' }
+  ],
+  name: [
+    { required: true, message: '请输入姓名', trigger: 'blur' },
+    { pattern: /^[\u4e00-\u9fa5]{2,10}$/, message: '姓名必须是2-10个汉字', trigger: 'blur' }
+  ],
+  department: [
+    { required: true, message: '请输入学院', trigger: 'blur' }
+  ],
+  major: [
+    { required: true, message: '请输入专业', trigger: 'blur' }
+  ],
+  className: [
+    { required: true, message: '请输入班级', trigger: 'blur' }
+  ],
+  batchYear: [
+    { required: true, message: '请选择批次', trigger: 'change' }
+  ],
+  phone: [
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的11位手机号', trigger: 'blur' }
+  ],
+  email: [
+    { pattern: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, message: '请输入正确的邮箱地址', trigger: 'blur' }
+  ]
+}
 
 const getEmploymentType = (status) => {
   const types = { 
@@ -213,6 +268,16 @@ const fetchData = async () => {
     if (searchBatch.value) {
       params.batchYear = searchBatch.value
     }
+    if (searchGender.value) {
+      params.gender = searchGender.value
+    }
+    if (searchEmploymentStatus.value) {
+      params.employmentStatus = searchEmploymentStatus.value
+    }
+    if (sortBy.value) {
+      params.sortBy = sortBy.value
+      params.sortOrder = sortOrder.value
+    }
     const res = await getStudentList(params)
     if (res.code === 200) {
       studentList.value = res.data.records
@@ -225,6 +290,34 @@ const fetchData = async () => {
 
 const handleSearch = () => {
   currentPage.value = 1
+  fetchData()
+}
+
+const handleReset = () => {
+  searchKeyword.value = ''
+  searchBatch.value = ''
+  searchGender.value = ''
+  searchEmploymentStatus.value = ''
+  sortBy.value = ''
+  sortOrder.value = 'asc'
+  currentPage.value = 1
+  fetchData()
+}
+
+const setSort = (field) => {
+  if (sortBy.value === field) {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortBy.value = field
+    sortOrder.value = 'asc'
+  }
+  currentPage.value = 1
+  fetchData()
+}
+
+const clearSort = () => {
+  sortBy.value = ''
+  sortOrder.value = 'asc'
   fetchData()
 }
 
@@ -287,8 +380,9 @@ const handleDelete = async (id) => {
 }
 
 const handleSubmit = async () => {
-  if (!formData.value.studentId || !formData.value.name || !formData.value.className || !formData.value.major) {
-    ElMessage.warning('请填写必填项')
+  try {
+    await formRef.value.validate()
+  } catch (error) {
     return
   }
   
@@ -354,9 +448,21 @@ onMounted(() => {
 }
 
 .search-bar {
+  margin-bottom: 15px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sort-bar {
   margin-bottom: 20px;
   display: flex;
   gap: 10px;
+  align-items: center;
+}
+
+.sort-label {
+  color: #666;
 }
 
 .pagination {
