@@ -52,7 +52,7 @@
         <!-- 未登录 -->
         <template v-else>
           <router-link to="/login" class="auth-btn login-btn">学生登录</router-link>
-          <router-link to="/admin" class="auth-btn admin-btn">管理后台</router-link>
+          <router-link to="/admin/login" class="auth-btn admin-btn">管理后台</router-link>
         </template>
       </div>
     </header>

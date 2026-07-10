@@ -4,7 +4,7 @@ const STORAGE_KEY = 'graduation_auth'
 
 const loadFromStorage = () => {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
+    const saved = sessionStorage.getItem(STORAGE_KEY)
     if (saved) {
       return JSON.parse(saved)
     }
@@ -28,7 +28,7 @@ const state = reactive({
 
 const saveToStorage = () => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
       isLoggedIn: state.isLoggedIn,
       user: state.user,
       role: state.role
@@ -50,15 +50,15 @@ export const useAuth = () => {
     state.isLoggedIn = false
     state.user = null
     state.role = null
-    localStorage.removeItem(STORAGE_KEY)
+    sessionStorage.removeItem(STORAGE_KEY)
   }
 
   const isAdmin = () => {
-    return state.role === 'admin'
+    return state.role?.toUpperCase() === 'ADMIN'
   }
 
   const isStudent = () => {
-    return state.role === 'student'
+    return state.role?.toUpperCase() === 'STUDENT'
   }
 
   return {
