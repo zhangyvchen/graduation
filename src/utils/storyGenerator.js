@@ -144,13 +144,17 @@ export const destinationStory = (data) => {
         }
     }
 
-    // 升学
-    const schools = data.schools || []
-    if (schools.length > 0) {
-        const top1 = schools[0]
-        text += `升学院校中，**${top1.name}** 最受欢迎（${top1.count}人）。`
-        if (schools.length > 5) {
-            text += `共有 **${schools.length}** 所高校有毕业生录取，选择非常多样化 🏫。`
+    // 入职公司 Top5
+    const companies = data.companies || []
+    if (companies.length > 0) {
+        const top1 = companies[0]
+        text += `入职公司中，**${top1.name}** 最受欢迎（${top1.count}人）。`
+        if (companies.length > 1) {
+            text += `其次是 **${companies[1].name}**（${companies[1].count}人）`
+            if (companies.length > 2) {
+                text += `和 **${companies[2].name}**（${companies[2].count}人）`
+            }
+            text += `。`
         }
     }
 
