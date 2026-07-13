@@ -1,25 +1,24 @@
 <template>
   <div 
     class="ai-float-container"
+    :class="{ 'dragging': isDragging }"
     :style="containerStyle"
-    @mousedown="startDrag"
-    @touchstart="startDrag"
   >
     <div 
       class="ai-float-btn" 
       :class="{ 'active': isOpen, 'dragging': isDragging }"
-      @click="toggleChat"
     >
       <div class="btn-ring"></div>
       <div class="btn-inner">
         <img class="ai-icon" :src="aiAvatarUrl" alt="AI助手" />
       </div>
       <span class="ai-badge" v-if="unreadCount > 0">{{ unreadCount }}</span>
+      <div class="btn-overlay" @mousedown="startDrag" @touchstart="startDrag" @click="toggleChat"></div>
     </div>
     
     <transition name="chat-panel">
-      <div v-if="isOpen" class="ai-chat-panel">
-        <div class="chat-header">
+      <div v-if="isOpen" class="ai-chat-panel" :style="panelStyle">
+        <div class="chat-header" @mousedown="startDrag" @touchstart="startDrag">
           <div class="chat-title">
             <div class="avatar-wrapper">
               <img class="avatar-icon" :src="aiAvatarHeaderUrl" alt="AI助手" />
@@ -31,7 +30,7 @@
             </div>
           </div>
           <div class="header-actions">
-            <button class="minimize-btn" @click="toggleChat">
+            <button class="minimize-btn" @click.stop="toggleChat">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="5" y1="12" x2="19" y2="12"></line>
               </svg>
@@ -93,6 +92,7 @@
             </button>
           </div>
         </div>
+        <div class="resize-handle" @mousedown="startResize" @touchstart="startResize"></div>
       </div>
     </transition>
   </div>
@@ -122,6 +122,13 @@ const startX = ref(0)
 const startY = ref(0)
 const startPosX = ref(0)
 const startPosY = ref(0)
+const hasMoved = ref(false)
+
+const panelWidth = ref(420)
+const panelHeight = ref(580)
+const isResizing = ref(false)
+const startWidth = ref(0)
+const startHeight = ref(0)
 
 const quickActions = ref([
   { text: '就业分析' },
@@ -133,6 +140,11 @@ const quickActions = ref([
 const containerStyle = computed(() => ({
   left: `${position.value.x}px`,
   top: `${position.value.y}px`
+}))
+
+const panelStyle = computed(() => ({
+  width: `${panelWidth.value}px`,
+  height: `${panelHeight.value}px`
 }))
 
 const messages = ref([
@@ -157,7 +169,10 @@ const scrollToBottom = () => {
 }
 
 const toggleChat = () => {
-  if (isDragging.value) return
+  if (isDragging.value || hasMoved.value) {
+    hasMoved.value = false
+    return
+  }
   isOpen.value = !isOpen.value
   if (isOpen.value) {
     unreadCount.value = 0
@@ -167,8 +182,6 @@ const toggleChat = () => {
 }
 
 const startDrag = (e) => {
-  if (isOpen.value) return
-  
   isDragging.value = true
   const event = e.touches ? e.touches[0] : e
   startX.value = event.clientX
@@ -178,6 +191,7 @@ const startDrag = (e) => {
   
   document.addEventListener('mousemove', onDrag)
   document.addEventListener('mouseup', stopDrag)
+  document.addEventListener('mouseleave', stopDrag)
   document.addEventListener('touchmove', onDrag)
   document.addEventListener('touchend', stopDrag)
 }
@@ -188,6 +202,10 @@ const onDrag = (e) => {
   const event = e.touches ? e.touches[0] : e
   const deltaX = event.clientX - startX.value
   const deltaY = event.clientY - startY.value
+  
+  if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
+    hasMoved.value = true
+  }
   
   let newX = startPosX.value + deltaX
   let newY = startPosY.value + deltaY
@@ -203,12 +221,79 @@ const onDrag = (e) => {
 
 const stopDrag = () => {
   isDragging.value = false
+  snapToEdge()
   savePosition()
   
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('mouseleave', stopDrag)
   document.removeEventListener('touchmove', onDrag)
   document.removeEventListener('touchend', stopDrag)
+}
+
+const snapToEdge = () => {
+  const snapThreshold = 60
+  const btnWidth = 56
+  
+  let newX = position.value.x
+  let newY = position.value.y
+  
+  if (newX < snapThreshold) {
+    newX = 10
+  } else if (window.innerWidth - newX - btnWidth < snapThreshold) {
+    newX = window.innerWidth - btnWidth - 10
+  }
+  
+  if (newY < snapThreshold) {
+    newY = 10
+  } else if (window.innerHeight - newY - btnWidth < snapThreshold) {
+    newY = window.innerHeight - btnWidth - 10
+  }
+  
+  if (newX !== position.value.x || newY !== position.value.y) {
+    position.value = { x: newX, y: newY }
+  }
+}
+
+const startResize = (e) => {
+  e.preventDefault()
+  e.stopPropagation()
+  isResizing.value = true
+  const event = e.touches ? e.touches[0] : e
+  startX.value = event.clientX
+  startY.value = event.clientY
+  startWidth.value = panelWidth.value
+  startHeight.value = panelHeight.value
+  
+  document.body.style.userSelect = 'none'
+  
+  document.addEventListener('mousemove', onResize)
+  document.addEventListener('mouseup', stopResize)
+  document.addEventListener('mouseleave', stopResize)
+  document.addEventListener('touchmove', onResize)
+  document.addEventListener('touchend', stopResize)
+}
+
+const onResize = (e) => {
+  if (!isResizing.value) return
+  
+  const event = e.touches ? e.touches[0] : e
+  const deltaX = event.clientX - startX.value
+  const deltaY = event.clientY - startY.value
+  
+  panelWidth.value = Math.max(320, Math.min(800, startWidth.value + deltaX))
+  panelHeight.value = Math.max(400, Math.min(800, startHeight.value + deltaY))
+}
+
+const stopResize = () => {
+  isResizing.value = false
+  document.body.style.userSelect = ''
+  
+  document.removeEventListener('mousemove', onResize)
+  document.removeEventListener('mouseup', stopResize)
+  document.removeEventListener('mouseleave', stopResize)
+  document.removeEventListener('touchmove', onResize)
+  document.removeEventListener('touchend', stopResize)
 }
 
 const savePosition = () => {
@@ -344,6 +429,7 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('mouseleave', stopDrag)
   document.removeEventListener('touchmove', onDrag)
   document.removeEventListener('touchend', stopDrag)
 })
@@ -354,10 +440,15 @@ onUnmounted(() => {
   position: fixed;
   z-index: 9999;
   cursor: grab;
+  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), top 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .ai-float-container:active {
   cursor: grabbing;
+}
+
+.ai-float-container.dragging {
+  transition: none;
 }
 
 .ai-float-btn {
@@ -417,6 +508,21 @@ onUnmounted(() => {
   height: 28px;
   border-radius: 50%;
   object-fit: cover;
+  pointer-events: none;
+}
+
+.btn-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 64px;
+  height: 64px;
+  margin: -8px;
+  border-radius: 50%;
+  z-index: 10;
+  cursor: grab;
 }
 
 .ai-float-btn:hover .btn-inner {
@@ -458,7 +564,8 @@ onUnmounted(() => {
 }
 
 .ai-chat-panel {
-  width: 420px;
+  display: flex;
+  flex-direction: column;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(24px);
   border-radius: 24px;
@@ -566,13 +673,14 @@ onUnmounted(() => {
 }
 
 .chat-messages {
-  max-height: 450px;
+  flex: 1;
   overflow-y: auto;
   padding: 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 18px;
   background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  min-height: 0;
 }
 
 .chat-messages::-webkit-scrollbar {
@@ -814,5 +922,39 @@ onUnmounted(() => {
 .chat-panel-leave-from {
   opacity: 1;
   transform: translateY(0) scale(1);
+}
+
+.resize-handle {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+}
+
+.resize-handle:hover {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.resize-handle::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #9ca3af;
+  border-bottom: 2px solid #9ca3af;
+  transform: rotate(-45deg);
+}
+
+.resize-handle:hover::after {
+  border-right-color: #fff;
+  border-bottom-color: #fff;
 }
 </style>
