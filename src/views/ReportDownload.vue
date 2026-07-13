@@ -13,6 +13,31 @@
           <el-form-item label="姓名">
             <el-input v-model="reportForm.name" placeholder="请输入姓名" />
           </el-form-item>
+          <el-form-item label="报告模板">
+            <el-select v-model="reportForm.templateId" placeholder="请选择报告模板" @change="onTemplateChange">
+              <el-option 
+                v-for="template in templateList" 
+                :key="template.id" 
+                :label="template.name" 
+                :value="template.id" 
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="selectedTemplate" label="模板预览">
+            <el-card class="template-preview-card" shadow="hover">
+              <div class="template-preview-header">
+                <strong>{{ selectedTemplate.name }}</strong>
+              </div>
+              <div v-if="selectedTemplate.content" class="template-preview-content">
+                {{ selectedTemplate.content.substring(0, 100) }}{{ selectedTemplate.content.length > 100 ? '...' : '' }}
+              </div>
+              <div v-else class="template-preview-content">
+                <p>院长寄语：{{ selectedTemplate.deanMessage || '暂无' }}</p>
+                <p>校友寄语：{{ selectedTemplate.alumniMessage || '暂无' }}</p>
+                <p>未来寄语：{{ selectedTemplate.futureMessage || '暂无' }}</p>
+              </div>
+            </el-card>
+          </el-form-item>
           <el-form-item label="报告类型">
             <el-select v-model="reportForm.type" placeholder="请选择报告类型">
               <el-option label="完整版" value="full" />
@@ -125,6 +150,20 @@
             </div>
           </div>
           <div class="report-footer">
+            <div v-if="selectedTemplate" class="template-messages">
+              <div v-if="selectedTemplate.deanMessage" class="message-section">
+                <h4>院长寄语</h4>
+                <p>{{ selectedTemplate.deanMessage }}</p>
+              </div>
+              <div v-if="selectedTemplate.alumniMessage" class="message-section">
+                <h4>校友寄语</h4>
+                <p>{{ selectedTemplate.alumniMessage }}</p>
+              </div>
+              <div v-if="selectedTemplate.futureMessage" class="message-section">
+                <h4>未来寄语</h4>
+                <p>{{ selectedTemplate.futureMessage }}</p>
+              </div>
+            </div>
             <p>报告仅供参考，如有疑问请联系学院</p>
           </div>
         </div>
@@ -140,6 +179,7 @@ import { getStudentByStudentId } from '../api/student'
 import { getGrowthByStudentId } from '../api/growth'
 import { getLearningByStudentId } from '../api/learning'
 import { getDestinationByStudentId } from '../api/destination'
+import { getTemplateList } from '../api/template'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
@@ -148,19 +188,44 @@ const route = useRoute()
 const reportForm = ref({
   studentId: '',
   name: '',
-  type: 'full'
+  type: 'full',
+  templateId: ''
 })
 const reportGenerated = ref(false)
 const loading = ref(false)
 const downloading = ref(false)
+const templateList = ref([])
+
+const selectedTemplate = computed(() => {
+  if (!reportForm.value.templateId) return null
+  return templateList.value.find(t => t.id === reportForm.value.templateId)
+})
 
 onMounted(() => {
+  fetchTemplates()
   if (route.query.studentId && route.query.name) {
     reportForm.value.studentId = route.query.studentId
     reportForm.value.name = route.query.name
-    generateReport()
   }
 })
+
+const fetchTemplates = async () => {
+  try {
+    const res = await getTemplateList()
+    if (res.code === 200) {
+      templateList.value = res.data || []
+      if (templateList.value.length > 0) {
+        reportForm.value.templateId = templateList.value[0].id
+      }
+    }
+  } catch (e) {
+    console.error('获取模板列表失败', e)
+  }
+}
+
+const onTemplateChange = (templateId) => {
+  console.log('选择模板:', templateId)
+}
 
 const reportTypeLabel = computed(() => {
   const types = { full: '完整版', simple: '精简版', employment: '就业分析版' }
@@ -253,7 +318,10 @@ ${reportData.value.growth.map(g => `${g.year}：${g.description}`).join('\n')}
 岗位：${reportData.value.position}
 薪资：${reportData.value.salary}
 
+${selectedTemplate.value ? `\n四、寄语\n${selectedTemplate.value.deanMessage ? `院长寄语：${selectedTemplate.value.deanMessage}\n` : ''}${selectedTemplate.value.alumniMessage ? `校友寄语：${selectedTemplate.value.alumniMessage}\n` : ''}${selectedTemplate.value.futureMessage ? `未来寄语：${selectedTemplate.value.futureMessage}\n` : ''}` : ''}
+
 报告生成时间：${new Date().toLocaleString()}
+报告模板：${selectedTemplate.value ? selectedTemplate.value.name : '默认模板'}
 `
   
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
@@ -459,5 +527,57 @@ const printReport = () => {
 .report-footer p {
   font-size: 12px;
   color: #999;
+}
+
+.template-preview-card {
+  margin-top: 10px;
+}
+
+.template-preview-header {
+  font-size: 14px;
+  color: #667eea;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eee;
+}
+
+.template-preview-content {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.6;
+}
+
+.template-preview-content p {
+  margin: 5px 0;
+}
+
+.template-messages {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.template-messages .message-section {
+  margin-bottom: 15px;
+}
+
+.template-messages .message-section:last-child {
+  margin-bottom: 0;
+}
+
+.template-messages h4 {
+  font-size: 14px;
+  color: #667eea;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.template-messages p {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.6;
+  margin: 0;
 }
 </style>

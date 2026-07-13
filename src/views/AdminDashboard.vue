@@ -80,6 +80,7 @@ import { useRouter } from 'vue-router'
 import { getRecentLogs } from '../api/operationLog'
 import { getAllBatch } from '../api/batch'
 import { getAllStudents } from '../api/student'
+import { getTemplateList } from '../api/template'
 
 const router = useRouter()
 const loading = ref(false)
@@ -114,9 +115,10 @@ const fetchRecentLogs = async () => {
 
 const fetchStats = async () => {
   try {
-    const [batchRes, studentRes] = await Promise.all([
+    const [batchRes, studentRes, templateRes] = await Promise.all([
       getAllBatch(),
-      getAllStudents()
+      getAllStudents(),
+      getTemplateList({ all: true })
     ])
     
     if (batchRes.code === 200) {
@@ -125,6 +127,10 @@ const fetchStats = async () => {
     
     if (studentRes.code === 200) {
       stats.value.totalStudents = studentRes.data.length
+    }
+    
+    if (templateRes.code === 200) {
+      stats.value.totalTemplates = templateRes.data.length
     }
   } catch (error) {
     console.error('获取统计数据失败:', error)
