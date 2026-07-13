@@ -1,13 +1,8 @@
-<!-- src/views/DestinationMap.vue -->
 <template>
   <div class="destination-page">
-    <!-- 新增：数据故事 -->
     <DataStory :text="storyText" @regenerate="refreshStory" />
-
-    <!-- 新增：弹幕层 -->
     <DanmakuLayer />
 
-    <!-- 原有内容 -->
     <div class="page-header">
       <h2>🗺️ 去向地图</h2>
       <div class="filter-bar">
@@ -52,9 +47,9 @@
 
       <el-card class="chart-card" :loading="loading">
         <template #header>
-          <span>历年趋势</span>
+          <span>📈 历年趋势</span>
         </template>
-        <div ref="trendChart" class="chart"></div>
+        <div ref="trendChartRef" class="chart"></div>
       </el-card>
     </div>
   </div>
@@ -64,37 +59,37 @@
 import { ref, onMounted, nextTick, watch } from 'vue'
 import * as echarts from 'echarts'
 import { Loading } from '@element-plus/icons-vue'
-import { getDestinationByYear, getProvinceStats, getIndustryStats } from '../api/destination'
+import { getDestinationByYear, getProvinceStats, getIndustryStats, getDestinationYears, getYearStats } from '../api/destination'
 import DataStory from '../components/DataStory.vue'
 import DanmakuLayer from '../components/DanmakuLayer.vue'
 import { generateStory } from '../utils/storyGenerator'
 
-const years = [2024, 2023, 2022, 2021]
-const selectedYear = ref(2024)
+const years = ref([])
+const selectedYear = ref(null)
 const selectedCollege = ref('')
 const colleges = ref(['软件工程学院', '计算机科学学院', '信息管理学院', '人工智能学院', '网络工程学院'])
 
 const heatmapChartRef = ref(null)
 const schoolChartRef = ref(null)
 const industryChartRef = ref(null)
+const trendChartRef = ref(null)
 
 let heatmapChart = null
 let schoolChart = null
 let industryChart = null
+let trendChart = null
 const mapLoaded = ref(false)
 
-// 新增：故事文本
 const storyText = ref('')
 const loading = ref(false)
 const destData = ref({ heatmap: [], schools: [], industry: [] })
 
-// ===== 模拟数据（数据库为空时使用）=====
 const MOCK_PROVINCES = [
-  { name: '广东', value: 385 }, { name: '浙江', value: 268 }, { name: '江苏', value: 245 },
-  { name: '北京', value: 212 }, { name: '上海', value: 198 }, { name: '四川', value: 156 },
-  { name: '湖北', value: 142 }, { name: '山东', value: 138 }, { name: '福建', value: 125 },
-  { name: '湖南', value: 112 }, { name: '河南', value: 98 }, { name: '安徽', value: 85 },
-  { name: '重庆', value: 78 }, { name: '陕西', value: 72 }, { name: '河北', value: 65 }
+  { name: '广东省', value: 385 }, { name: '浙江省', value: 268 }, { name: '江苏省', value: 245 },
+  { name: '北京市', value: 212 }, { name: '上海市', value: 198 }, { name: '四川省', value: 156 },
+  { name: '湖北省', value: 142 }, { name: '山东省', value: 138 }, { name: '福建省', value: 125 },
+  { name: '湖南省', value: 112 }, { name: '河南省', value: 98 }, { name: '安徽省', value: 85 },
+  { name: '重庆市', value: 78 }, { name: '陕西省', value: 72 }, { name: '河北省', value: 65 }
 ]
 const MOCK_SCHOOLS = [
   { name: '北京大学', count: 28 }, { name: '清华大学', count: 25 },
@@ -115,29 +110,66 @@ const MOCK_INDUSTRY = [
   { name: '其他', value: 7.1 }
 ]
 
-// ===== 检查数据是否为空 =====
 function isDataEmpty(heatmap, schools, industry) {
   return heatmap.length === 0 && schools.length === 0 && industry.length === 0
 }
 
-// ===== 数据加载 =====
+const normalizeProvinceName = (name) => {
+  if (!name) return name
+  const suffixes = ['省', '市', '自治区', '特别行政区']
+  for (const suffix of suffixes) {
+    if (name.endsWith(suffix)) return name
+  }
+  if (name === '内蒙古') return '内蒙古自治区'
+  if (name === '广西') return '广西壮族自治区'
+  if (name === '西藏') return '西藏自治区'
+  if (name === '宁夏') return '宁夏回族自治区'
+  if (name === '新疆') return '新疆维吾尔自治区'
+  return name + '省'
+}
+
+const loadYears = async () => {
+  try {
+    const res = await getDestinationYears()
+    console.log('年份列表API响应:', res)
+    if (res.code === 200 && res.data && res.data.length > 0) {
+      years.value = res.data
+      selectedYear.value = res.data[0]
+      console.log('✅ 从数据库获取年份列表:', res.data, '默认选中:', selectedYear.value)
+    } else {
+      throw new Error('无数据')
+    }
+  } catch (error) {
+    console.warn('获取年份列表失败，使用默认年份', error)
+    years.value = [2024, 2023, 2022, 2021]
+    selectedYear.value = years.value[0]
+  }
+}
+
 const loadData = async () => {
+  if (!selectedYear.value) {
+    console.warn('未选择年份，跳过数据加载')
+    return
+  }
   loading.value = true
   try {
     const year = selectedYear.value
+    console.log('📊 开始加载数据，年份:', year)
 
-    // 1. 省份统计 → 热力图数据
     const provinceRes = await getProvinceStats(year)
+    console.log('省份统计响应:', provinceRes)
     let heatmap = []
     if (provinceRes.code === 200 && provinceRes.data) {
       const pData = provinceRes.data
       ;(pData.provinces || []).forEach((name, i) => {
-        heatmap.push({ name, value: (pData.counts || [])[i] || 0 })
+        const normalizedName = normalizeProvinceName(name)
+        heatmap.push({ name: normalizedName, value: (pData.counts || [])[i] || 0 })
       })
     }
+    console.log('📍 省份热力图数据:', heatmap)
 
-    // 2. 去向明细数据 → 升学院校 Top20
     const rawRes = await getDestinationByYear(year)
+    console.log('去向明细响应:', rawRes)
     const schoolMap = new Map()
     let schools = []
     if (rawRes.code === 200 && Array.isArray(rawRes.data)) {
@@ -149,16 +181,27 @@ const loadData = async () => {
     }
     if (schoolMap.size > 0) {
       schools = Array.from(schoolMap.entries())
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 20)
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 20)
     }
+    console.log(' 升学院校数据:', schools)
 
-    // 3. 行业统计
     const industryRes = await getIndustryStats(year)
-    let industry = (industryRes.code === 200 && industryRes.data?.industryData) ? industryRes.data.industryData : []
+    console.log('行业统计响应:', industryRes)
+    let industry = []
+    if (industryRes.code === 200 && industryRes.data?.industryData) {
+      const rawIndustry = industryRes.data.industryData
+      const total = rawIndustry.reduce((sum, item) => sum + (item.value || 0), 0)
+      if (total > 0) {
+        industry = rawIndustry.map(item => ({
+          name: item.name,
+          value: Math.round((item.value / total) * 1000) / 10
+        }))
+      }
+    }
+    console.log('📊 行业分布数据:', industry)
 
-    // 4. 如果所有数据都为空，使用模拟数据
     if (isDataEmpty(heatmap, schools, industry)) {
       console.log('去向地图数据库为空，使用模拟数据')
       heatmap = MOCK_PROVINCES
@@ -175,17 +218,52 @@ const loadData = async () => {
       industry: MOCK_INDUSTRY
     }
   }
-  // 数据加载完成后生成故事
+
   storyText.value = generateStory(destData.value, 'destination')
   loading.value = false
+
+  await nextTick()
+  updateCharts()
+  loadTrendChart()
 }
 
-// 刷新故事
+const loadTrendChart = async () => {
+  try {
+    const res = await getYearStats()
+    console.log('历年趋势数据:', res)
+    if (res.code === 200 && res.data) {
+      const { years: yearList, counts } = res.data
+      if (trendChart && yearList && yearList.length > 0) {
+        trendChart.setOption({
+          tooltip: { trigger: 'axis' },
+          grid: { left: '12%', right: '8%', bottom: '12%', top: '8%' },
+          xAxis: { type: 'category', data: yearList.map(y => y + '届') },
+          yAxis: { type: 'value', name: '人数' },
+          series: [{
+            type: 'line',
+            data: counts,
+            smooth: true,
+            itemStyle: { color: '#667eea' },
+            areaStyle: {
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(102,126,234,0.4)' },
+                { offset: 1, color: 'rgba(102,126,234,0.05)' }
+              ])
+            }
+          }]
+        })
+        trendChart.resize()
+      }
+    }
+  } catch (e) {
+    console.warn('加载趋势数据失败', e)
+  }
+}
+
 const refreshStory = () => {
   storyText.value = generateStory(destData.value, 'destination')
 }
 
-// ===== 加载中国地图 =====
 const loadChinaMap = async () => {
   try {
     const response = await fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json')
@@ -200,7 +278,6 @@ const loadChinaMap = async () => {
   }
 }
 
-// ===== 初始化图表 =====
 const initCharts = () => {
   if (heatmapChartRef.value) {
     heatmapChart = echarts.init(heatmapChartRef.value)
@@ -211,22 +288,32 @@ const initCharts = () => {
   if (industryChartRef.value) {
     industryChart = echarts.init(industryChartRef.value)
   }
-  updateCharts()
+  if (trendChartRef.value) {
+    trendChart = echarts.init(trendChartRef.value)
+  }
 }
 
-// ===== 更新图表 =====
 const updateCharts = () => {
   updateHeatmap()
   updateSchools()
   updateIndustry()
 }
 
-// ----- 1. 中国地图热力图 -----
 const updateHeatmap = () => {
   if (!heatmapChart) return
   const data = destData.value.heatmap
+  console.log('🔥 更新热力图，数据:', data)
+
+  if (data.length === 0) {
+    console.warn('⚠️ 热力图数据为空')
+    return
+  }
+
   const maxValue = Math.max(...data.map(d => d.value), 1)
+
   if (mapLoaded.value && echarts.getMap('china')) {
+    console.log('✅ 使用中国地图渲染热力图')
+
     heatmapChart.setOption({
       tooltip: {
         trigger: 'item',
@@ -267,8 +354,9 @@ const updateHeatmap = () => {
           label: { color: '#fff', fontWeight: 'bold' }
         }
       }]
-    })
+    }, true)
   } else {
+    console.log('⚠️ 地图未加载，使用柱状图备用方案')
     const sorted = [...data].sort((a, b) => b.value - a.value).slice(0, 15)
     heatmapChart.setOption({
       tooltip: { trigger: 'axis', formatter: '{b}<br/>就业人数：{c}人' },
@@ -288,12 +376,11 @@ const updateHeatmap = () => {
         barWidth: '50%',
         label: { show: true, position: 'top', formatter: '{c}人' }
       }]
-    })
+    }, true)
   }
   heatmapChart.resize()
 }
 
-// ----- 2. 升学院校 Top20 -----
 const updateSchools = () => {
   if (!schoolChart) return
   const data = destData.value.schools.slice(0, 20)
@@ -316,11 +403,10 @@ const updateSchools = () => {
       barWidth: '55%',
       label: { show: true, position: 'right', formatter: '{c}人' }
     }]
-  })
+  }, true)
   schoolChart.resize()
 }
 
-// ----- 3. 行业分布饼图 -----
 const updateIndustry = () => {
   if (!industryChart) return
   const colors = ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe', '#43e97b', '#fa709a']
@@ -338,26 +424,38 @@ const updateIndustry = () => {
         itemStyle: { color: colors[i % colors.length] }
       }))
     }]
-  })
+  }, true)
   industryChart.resize()
 }
 
-// ===== 事件处理 =====
 const onYearChange = () => loadData()
-const onCollegeChange = onYearChange
+const onCollegeChange = () => loadData()
 
-// ===== 生命周期 =====
 onMounted(async () => {
   await loadChinaMap()
-  await loadData()
-  nextTick(() => initCharts())
+  await loadYears()
+
+  if (mapLoaded.value) {
+    initCharts()
+    await loadData()
+  } else {
+    console.warn('⚠️ 地图加载失败，延迟初始化')
+    setTimeout(async () => {
+      initCharts()
+      await loadData()
+    }, 1000)
+  }
 
   window.addEventListener('resize', () => {
-    [heatmapChart, schoolChart, industryChart].forEach(c => c?.resize())
+    [heatmapChart, schoolChart, industryChart, trendChart].forEach(c => c?.resize())
   })
 })
 
-watch(selectedYear, onYearChange)
+watch(selectedYear, () => {
+  if (selectedYear.value) {
+    loadData()
+  }
+})
 </script>
 
 <style scoped>

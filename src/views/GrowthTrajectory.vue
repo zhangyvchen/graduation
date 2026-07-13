@@ -60,13 +60,13 @@
 <script setup>
 import { ref, onMounted, watch, nextTick } from 'vue'
 import * as echarts from 'echarts'
-import { getGrowthByYear } from '../api/growth'
+import { getGrowthByYear, getGrowthYears } from '../api/growth'
 import DataStory from '../components/DataStory.vue'
 import DanmakuLayer from '../components/DanmakuLayer.vue'
 import { generateStory } from '../utils/storyGenerator'
 
-const years = [2024, 2023, 2022, 2021]
-const selectedYear = ref(2024)
+const years = ref([])
+const selectedYear = ref(null)
 const selectedCollege = ref('')
 const colleges = ref(['软件工程学院', '计算机科学学院', '信息管理学院', '人工智能学院', '网络工程学院'])
 
@@ -115,6 +115,7 @@ function isDataEmpty(d) {
 }
 
 const loadData = async () => {
+  if (!selectedYear.value) return
   loading.value = true
   try {
     const res = await getGrowthByYear(selectedYear.value)
@@ -188,6 +189,26 @@ const refreshStory = () => {
 
 const onYearChange = () => loadData()
 const onCollegeChange = () => loadData()
+const loadYears = async () => {
+  try {
+    const res = await getGrowthYears()
+    console.log('成长轨迹年份接口返回:', res)
+    if (res.code === 200 && res.data && res.data.length > 0) {
+      years.value = res.data
+      if (!selectedYear.value) {
+        selectedYear.value = years.value[0]
+      }
+    } else {
+      throw new Error('无数据')
+    }
+  } catch (error) {
+    console.error('获取成长轨迹年份列表失败:', error)
+    years.value = [2025, 2024, 2023, 2022]
+    if (!selectedYear.value) {
+      selectedYear.value = years.value[0]
+    }
+  }
+}
 
 const initCharts = () => {
   if (honorChartRef.value) honorChart = echarts.init(honorChartRef.value)
@@ -316,6 +337,7 @@ const updateCharts = () => {
 }
 
 onMounted(async () => {
+  await loadYears()
   await loadData()
   initCharts()
   window.addEventListener('resize', () => {

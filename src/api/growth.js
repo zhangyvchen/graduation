@@ -14,6 +14,13 @@ export function getGrowthByYear(year) {
   })
 }
 
+export function getGrowthYears() {
+  return request({
+    url: '/growth-trajectory/years',
+    method: 'get'
+  })
+}
+
 export function saveGrowth(data) {
   return request({
     url: '/growth-trajectory',
