@@ -14,6 +14,13 @@ export function getLearningByYear(year) {
   })
 }
 
+export function getLearningYears() {
+  return request({
+    url: '/learning-profile/years',
+    method: 'get'
+  })
+}
+
 export function saveLearning(data) {
   return request({
     url: '/learning-profile',
