@@ -43,7 +43,7 @@
                 <p><strong>学号：</strong>{{ verifyResult.student.studentId }}</p>
                 <p><strong>姓名：</strong>{{ verifyResult.student.name }}</p>
                 <p><strong>班级：</strong>{{ verifyResult.student.className }}</p>
-                <p><strong>批次：</strong>{{ verifyResult.student.batchYear }}届</p>
+                <p><strong>批次：</strong>{{ verifyResult.student.year }}届</p>
               </div>
               <p class="verify-time">核销时间：{{ verifyResult.time }}</p>
             </div>
@@ -107,7 +107,7 @@
             <el-descriptions-item label="学号">{{ studentInfo.studentId }}</el-descriptions-item>
             <el-descriptions-item label="姓名">{{ studentInfo.name }}</el-descriptions-item>
             <el-descriptions-item label="班级">{{ studentInfo.className }}</el-descriptions-item>
-            <el-descriptions-item label="批次">{{ studentInfo.batchYear }}届</el-descriptions-item>
+            <el-descriptions-item label="批次">{{ studentInfo.year }}届</el-descriptions-item>
           </el-descriptions>
         </div>
       </el-card>
@@ -166,7 +166,7 @@ const studentInfo = ref({
   studentId: '',
   name: '',
   className: '',
-  batchYear: ''
+  year: ''
 })
 
 const verifyHistory = ref([])
@@ -237,7 +237,7 @@ const loadStudentQRCode = () => {
     studentId: auth.state.user?.studentId || '2020001',
     name: auth.state.user?.name || '张三',
     className: auth.state.user?.className || '软件工程2001班',
-    batchYear: auth.state.user?.batchYear || 2024
+    year: auth.state.user?.year || 2024
   }
   setTimeout(() => {
     generateQRCode()
@@ -340,7 +340,7 @@ const handleVerify = async () => {
           studentId: studentId,
           name: '学生' + studentId.slice(-3),
           className: '软件工程2001班',
-          batchYear: 2024
+          year: 2024
         },
         time: new Date().toLocaleString()
       }

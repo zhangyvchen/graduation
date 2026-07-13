@@ -65,7 +65,7 @@ const handleLogin = () => {
       studentId: loginForm.value.studentId,
       name: loginForm.value.studentId,
       className: '软件工程2001班',
-      batchYear: 2024,
+      year: 2024,
       role: 'student'
     })
     

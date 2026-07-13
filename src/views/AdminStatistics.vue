@@ -86,11 +86,14 @@
 
 <script setup>
 import { ref, onMounted, watch, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import * as echarts from 'echarts'
 import { getStatisticsByYear, getStatisticsOverview, getStatisticsTrend, getCompanyTypes, getMajorRates, getEmploymentDistribution } from '../api/batch'
 
+const route = useRoute()
+
 const years = ref([2024])
-const selectedYear = ref(2024)
+const selectedYear = ref(parseInt(route.query.year) || 2024)
 
 const statistics = ref({
   totalGraduates: 0,

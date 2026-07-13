@@ -21,17 +21,9 @@
       </el-table-column>
       <el-table-column prop="year" label="毕业年份" width="120" />
       <el-table-column prop="totalGraduates" label="总毕业生数" width="120" />
-      <el-table-column label="就业人数" width="120">
-        <template #default="scope">
-          {{ getStatusCount(scope.row, 'employed') }}
-        </template>
-      </el-table-column>
+      <el-table-column prop="employedCount" label="就业人数" width="120" />
       <el-table-column prop="employmentRate" label="就业率(%)" width="120" />
-      <el-table-column label="升学人数" width="120">
-        <template #default="scope">
-          {{ getStatusCount(scope.row, 'enrolled') }}
-        </template>
-      </el-table-column>
+      <el-table-column prop="enrolledCount" label="升学人数" width="120" />
       <el-table-column prop="enrollmentRate" label="升学率(%)" width="120" />
       <el-table-column prop="startTime" label="开始时间" width="150" />
       <el-table-column prop="endTime" label="结束时间" width="150" />
@@ -93,7 +85,6 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { getBatchList, saveBatch, updateBatch, deleteBatch, toggleBatchStatus, recalculateBatch } from '../api/batch'
-import { getStudentList } from '../api/student'
 
 const router = useRouter()
 
@@ -102,7 +93,6 @@ const searchKeyword = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
-const studentMap = ref({})
 
 const dialogVisible = ref(false)
 const isEdit = ref(false)
@@ -112,33 +102,6 @@ const formData = ref({
   startTime: '',
   endTime: ''
 })
-
-const fetchStudentMap = async () => {
-  try {
-    const res = await getStudentList({ pageNum: 1, pageSize: 1000 })
-    if (res.code === 200) {
-      const map = {}
-      res.data.records.forEach(s => {
-        if (!map[s.batchYear]) {
-          map[s.batchYear] = { employed: 0, enrolled: 0, unemployed: 0, entrepreneur: 0 }
-        }
-        const status = s.employmentStatus
-        if (status === 'employed' || status === '已就业') map[s.batchYear].employed++
-        else if (status === 'enrolled' || status === '升学') map[s.batchYear].enrolled++
-        else if (status === 'unemployed' || status === '待就业') map[s.batchYear].unemployed++
-        else if (status === 'entrepreneur' || status === '自主创业') map[s.batchYear].entrepreneur++
-      })
-      studentMap.value = map
-    }
-  } catch (error) {
-    console.error('Fetch student map error:', error)
-  }
-}
-
-const getStatusCount = (row, status) => {
-  const yearData = studentMap.value[row.year]
-  return yearData ? yearData[status] : 0
-}
 
 const fetchData = async () => {
   try {
@@ -154,7 +117,6 @@ const fetchData = async () => {
       batchList.value = res.data.records
       total.value = res.data.total
     }
-    await fetchStudentMap()
   } catch (error) {
     ElMessage.error('获取数据失败')
   }

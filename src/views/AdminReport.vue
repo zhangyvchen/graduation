@@ -118,6 +118,7 @@ onMounted(() => {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
+
 .report-section h3 {
   color: #333;
   margin-bottom: 20px;
