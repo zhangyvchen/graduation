@@ -34,7 +34,7 @@
     <div class="sort-bar">
       <span class="sort-label">排序：</span>
       <el-button :type="sortBy === 'name' ? 'primary' : ''" @click="setSort('name')">按姓名排序</el-button>
-      <el-button :type="sortBy === 'batchYear' ? 'primary' : ''" @click="setSort('batchYear')">按毕业年份排序</el-button>
+      <el-button :type="sortBy === 'year' ? 'primary' : ''" @click="setSort('year')">按毕业年份排序</el-button>
       <el-button :type="sortBy === 'studentId' ? 'primary' : ''" @click="setSort('studentId')">按学号排序</el-button>
       <el-button v-if="sortBy" @click="clearSort">清除排序</el-button>
     </div>
@@ -50,7 +50,7 @@
       <el-table-column prop="className" label="班级" width="150" />
       <el-table-column prop="major" label="专业" width="150" />
       <el-table-column prop="department" label="学院" width="150" />
-      <el-table-column prop="batchYear" label="批次" width="100" />
+      <el-table-column prop="year" label="批次" width="100" />
       <el-table-column prop="gender" label="性别" width="80">
         <template #default="scope">
           {{ scope.row.gender === 'male' || scope.row.gender === '男' ? '男' : '女' }}
@@ -107,8 +107,8 @@
         <el-form-item label="班级" prop="className">
           <el-input v-model="formData.className" placeholder="请输入班级" />
         </el-form-item>
-        <el-form-item label="批次" prop="batchYear">
-          <el-select v-model="formData.batchYear" placeholder="选择批次">
+        <el-form-item label="批次" prop="year">
+          <el-select v-model="formData.year" placeholder="选择批次">
             <el-option v-for="batch in batches" :key="batch" :label="batch + '届'" :value="batch" />
           </el-select>
         </el-form-item>
@@ -195,7 +195,7 @@ const formData = ref({
   department: '',
   className: '',
   major: '',
-  batchYear: '',
+  year: '',
   phone: '',
   email: '',
   employmentStatus: ''
@@ -219,7 +219,7 @@ const formRules = {
   className: [
     { required: true, message: '请输入班级', trigger: 'blur' }
   ],
-  batchYear: [
+  year: [
     { required: true, message: '请选择批次', trigger: 'change' }
   ],
   phone: [
@@ -266,7 +266,7 @@ const fetchData = async () => {
       params.name = keyword
     }
     if (searchBatch.value) {
-      params.batchYear = searchBatch.value
+      params.year = searchBatch.value
     }
     if (searchGender.value) {
       params.gender = searchGender.value
@@ -341,7 +341,7 @@ const handleAdd = () => {
     department: '',
     className: '',
     major: '',
-    batchYear: '',
+    year: '',
     phone: '',
     email: '',
     employmentStatus: ''
@@ -351,10 +351,9 @@ const handleAdd = () => {
 
 const handleViewReport = (row) => {
   router.push({
-    path: '/admin/report',
+    path: '/admin/statistics',
     query: {
-      studentId: row.studentId,
-      name: row.name
+      year: row.year
     }
   })
 }

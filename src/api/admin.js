@@ -8,6 +8,22 @@ export function login(data) {
   })
 }
 
+export function resetPassword(data) {
+  return request({
+    url: '/admin/reset-password',
+    method: 'post',
+    data
+  })
+}
+
+export function changePassword(data) {
+  return request({
+    url: '/admin/change-password',
+    method: 'post',
+    data
+  })
+}
+
 export function getAdminList() {
   return request({
     url: '/admin',
