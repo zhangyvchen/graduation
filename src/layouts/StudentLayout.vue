@@ -43,7 +43,8 @@
           </span>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item @click="$router.push('/verify')">我的报告</el-dropdown-item>
+              <el-dropdown-item v-if="auth.isAdmin()" @click="router.push('/admin/dashboard')">返回管理首页</el-dropdown-item>
+              <el-dropdown-item v-if ="auth.isStudent()" @click="router.push('/verify')">我的报告</el-dropdown-item>
               <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -100,6 +101,7 @@ import { useRouter } from 'vue-router'
 import { useAuth } from '../stores/auth'
 import { ArrowDown } from '@element-plus/icons-vue'
 import { getTemplateList } from '../api/template'
+import {createRouter as $router} from "vue-router/dist/vue-router.esm-browser";
 
 const router = useRouter()
 const auth = useAuth()
