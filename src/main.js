@@ -9,7 +9,9 @@ const app = createApp(App)
 app.use(ElementPlus)
 
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-  app.component(key, component)
+  if (/^[a-zA-Z][a-zA-Z0-9]*$/.test(key)) {
+    app.component(key, component)
+  }
 }
 
 app.use(router)

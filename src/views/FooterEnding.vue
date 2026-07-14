@@ -1,7 +1,3 @@
-<script setup>
-
-</script>
-
 <template>
   <div class="footer-ending">
     <!-- 原有的寄语部分 -->
@@ -99,8 +95,4 @@ import PostcardGenerator from '../components/PostcardGenerator.vue'
     grid-template-columns: 1fr;
   }
 }
-</style>
-
-<style scoped>
-
 </style>

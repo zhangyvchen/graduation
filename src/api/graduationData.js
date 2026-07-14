@@ -2,7 +2,7 @@ import request from './request'
 
 export function getGraduationDataByYear(year) {
   return request({
-    url: '/graduation-data',
+    url: '/graduation-data/list',
     method: 'get',
     params: { year }
   })
