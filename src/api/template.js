@@ -2,7 +2,7 @@ import request from './request'
 
 export function getTemplateList(params) {
   return request({
-    url: '/template',
+    url: '/template/list',
     method: 'get',
     params
   })

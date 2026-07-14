@@ -95,7 +95,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../stores/auth'
 import { ArrowDown } from '@element-plus/icons-vue'
@@ -110,16 +110,17 @@ const footerData = ref({
   futureMessage: ''
 })
 
+let isMounted = false
+
 const handleLogout = () => {
   auth.logout()
   router.push('/')
 }
 
-// 加载尾页数据（从后台配置读取）
 const loadFooterData = async () => {
   try {
     const res = await getTemplateList({ type: 'footer' })
-    if (res.code === 200 && res.data && res.data.length > 0) {
+    if (isMounted && res.code === 200 && res.data && res.data.length > 0) {
       const footer = res.data.find(t => t.type === 'footer') || res.data[0]
       footerData.value = {
         deanMessage: footer.deanMessage || footerData.value.deanMessage,
@@ -133,7 +134,12 @@ const loadFooterData = async () => {
 }
 
 onMounted(() => {
+  isMounted = true
   loadFooterData()
+})
+
+onUnmounted(() => {
+  isMounted = false
 })
 </script>
 

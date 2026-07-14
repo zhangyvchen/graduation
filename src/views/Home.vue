@@ -55,7 +55,7 @@
 <script setup>
 import { getOverview } from '../api/graduationData'
 import * as echarts from 'echarts'
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 
 const selectedYear = ref(2024)
 const years = ref([2020, 2021, 2022, 2023, 2024, 2025, 2026])
@@ -71,18 +71,32 @@ const trendChartRef = ref(null)
 let pieChart = null
 let trendChart = null
 const allYearData = ref([])
+let isMounted = false
 
 onMounted(async () => {
+  isMounted = true
   await loadOverview()
   await loadAllYears()
   nextTick(() => initCharts())
+})
+
+onUnmounted(() => {
+  isMounted = false
+  if (pieChart) {
+    pieChart.dispose()
+    pieChart = null
+  }
+  if (trendChart) {
+    trendChart.dispose()
+    trendChart = null
+  }
 })
 
 const loadOverview = async () => {
   loading.value = true
   try {
     const res = await getOverview(selectedYear.value)
-    if (res.code === 200 && res.data) {
+    if (isMounted && res.code === 200 && res.data) {
       overview.value = res.data
     }
   } finally {
@@ -94,7 +108,7 @@ const loadAllYears = async () => {
   const data = []
   for (const year of years.value) {
     const res = await getOverview(year)
-    if (res.code === 200 && res.data) data.push(res.data)
+    if (isMounted && res.code === 200 && res.data) data.push(res.data)
   }
   allYearData.value = data
 }

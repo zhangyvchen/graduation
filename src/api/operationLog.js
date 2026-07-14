@@ -2,7 +2,7 @@ import request from './request'
 
 export function getOperationLogList(params) {
   return request({
-    url: '/operation-log',
+    url: '/operation-log/list',
     method: 'get',
     params
   })

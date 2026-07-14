@@ -32,14 +32,15 @@
           🚀 发射
         </el-button>
         <!-- 开关按钮改成更明显的样式 -->
-        <el-button
-            size="small"
-            :type="enabled ? 'warning' : 'success'"
-            @click="toggleDanmaku"
-            :icon="enabled ? '✖' : '💬'"
-        >
-          {{ enabled ? '关闭弹幕' : '开启弹幕' }}
-        </el-button>
+          <el-button
+                  size="small"
+                  :type="enabled ? 'warning' : 'success'"
+                  @click="toggleDanmaku"
+          >
+              <span style="font-size: 14px;">{{ enabled ? '✖' : '💬' }}</span>
+              {{ enabled ? '关闭弹幕' : '开启弹幕' }}
+          </el-button>
+
       </div>
     </div>
   </div>
