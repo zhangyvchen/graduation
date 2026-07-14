@@ -108,6 +108,7 @@ const unreadCount = ref(0)
 const inputText = ref('')
 const userId = ref('user_' + new Date().getTime())
 const messagesContainer = ref(null)
+let isMounted = false
 
 const aiAvatarUrl = ref('/static/AI_1.png')
 const aiAvatarHeaderUrl = ref('/static/AI_2.png')
@@ -322,7 +323,7 @@ const loadChatHistory = async () => {
   try {
     const response = await fetch(`/api/ai/chat-history/${userId.value}`)
     const data = await response.json()
-    if (data.code === 200 && data.data && data.data.length > 0) {
+    if (isMounted && data.code === 200 && data.data && data.data.length > 0) {
       messages.value = data.data.map(msg => ({
         id: msg.id,
         role: msg.role,
@@ -373,7 +374,7 @@ const sendMessage = async () => {
     const reader = response.body.getReader()
     const decoder = new TextDecoder('utf-8')
     
-    while (true) {
+    while (isMounted) {
       const { done, value } = await reader.read()
       if (done) break
       
@@ -420,12 +421,14 @@ const handleResize = () => {
 }
 
 onMounted(() => {
+  isMounted = true
   loadPosition()
   loadChatHistory()
   window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
+  isMounted = false
   window.removeEventListener('resize', handleResize)
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)

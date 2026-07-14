@@ -2,7 +2,7 @@ import request from './request'
 
 export function getBatchList(params) {
   return request({
-    url: '/batch',
+    url: '/batch/list',
     method: 'get',
     params
   })
