@@ -10,18 +10,18 @@
     >
       <div class="btn-ring"></div>
       <div class="btn-inner">
-        <img class="ai-icon" :src="aiAvatarUrl" alt="AI助手" />
+        <img class="ai-icon" :src="aiAvatarUrl" alt="AI助手" draggable="false" />
       </div>
       <span class="ai-badge" v-if="unreadCount > 0">{{ unreadCount }}</span>
       <div class="btn-overlay" @mousedown="startDrag" @touchstart="startDrag" @click="toggleChat"></div>
     </div>
     
     <transition name="chat-panel">
-      <div v-if="isOpen" class="ai-chat-panel" :style="panelStyle">
-        <div class="chat-header" @mousedown="startDrag" @touchstart="startDrag">
+      <div v-if="isOpen" class="ai-chat-panel" :style="panelStyle" @mousemove="onPanelMouseMove" @mousedown="handlePanelMouseDown" ref="panelRef">
+        <div class="chat-header" @mousedown.stop="startDrag" @touchstart.stop="startDrag" style="cursor: grab;">
           <div class="chat-title">
             <div class="avatar-wrapper">
-              <img class="avatar-icon" :src="aiAvatarHeaderUrl" alt="AI助手" />
+              <img class="avatar-icon" :src="aiAvatarHeaderUrl" alt="AI助手" draggable="false" />
               <div class="status-dot"></div>
             </div>
             <div class="title-text">
@@ -41,7 +41,7 @@
         <div class="chat-messages" ref="messagesContainer">
           <div class="message" :class="msg.role === 'ai' ? 'ai-message' : 'user-message'" v-for="msg in messages" :key="msg.id">
             <div class="message-avatar" v-if="msg.role === 'ai'">
-              <img :src="aiAvatarMsgUrl" alt="AI助手" />
+              <img :src="aiAvatarMsgUrl" alt="AI助手" draggable="false" />
             </div>
             <div class="message-avatar" v-else>
               <svg viewBox="0 0 32 32" fill="none">
@@ -62,6 +62,11 @@
                 <span class="dot"></span>
                 <span class="dot"></span>
               </div>
+              <button class="stop-btn" @click="stopGeneration">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="6" y="4" width="12" height="16"></rect>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -108,7 +113,10 @@ const unreadCount = ref(0)
 const inputText = ref('')
 const userId = ref('user_' + new Date().getTime())
 const messagesContainer = ref(null)
+const panelRef = ref(null)
 let isMounted = false
+let resizeEdge = null
+let abortController = null
 
 const aiAvatarUrl = ref('/static/AI_1.png')
 const aiAvatarHeaderUrl = ref('/static/AI_2.png')
@@ -256,10 +264,66 @@ const snapToEdge = () => {
   }
 }
 
+const onPanelMouseMove = (e) => {
+  if (!panelRef.value || isResizing.value || isDragging.value) return
+  
+  const rect = panelRef.value.getBoundingClientRect()
+  const padding = 8
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  
+  let cursor = ''
+  
+  if (x < padding) {
+    cursor = 'ew-resize'
+    resizeEdge = 'left'
+  } else if (x > rect.width - padding) {
+    cursor = 'ew-resize'
+    resizeEdge = 'right'
+  } else {
+    resizeEdge = null
+  }
+  
+  if (y < padding) {
+    cursor = cursor ? 'nwse-resize' : 'ns-resize'
+    resizeEdge = cursor.includes('n') ? (resizeEdge ? 'top-' + resizeEdge : 'top') : null
+  } else if (y > rect.height - padding) {
+    cursor = cursor ? 'nwse-resize' : 'ns-resize'
+    resizeEdge = cursor.includes('s') ? (resizeEdge ? 'bottom-' + resizeEdge : 'bottom') : null
+  } else if (!cursor) {
+    resizeEdge = null
+  }
+  
+  panelRef.value.style.cursor = cursor || ''
+}
+
+const handlePanelMouseDown = (e) => {
+  if (!panelRef.value || resizeEdge === null) return
+  if (e.target.closest('.chat-header')) return
+  
+  e.preventDefault()
+  e.stopPropagation()
+  isResizing.value = true
+  const event = e.touches ? e.touches[0] : e
+  startX.value = event.clientX
+  startY.value = event.clientY
+  startWidth.value = panelWidth.value
+  startHeight.value = panelHeight.value
+  
+  document.body.style.userSelect = 'none'
+  
+  document.addEventListener('mousemove', onResize)
+  document.addEventListener('mouseup', stopResize)
+  document.addEventListener('mouseleave', stopResize)
+  document.addEventListener('touchmove', onResize)
+  document.addEventListener('touchend', stopResize)
+}
+
 const startResize = (e) => {
   e.preventDefault()
   e.stopPropagation()
   isResizing.value = true
+  resizeEdge = 'bottom-right'
   const event = e.touches ? e.touches[0] : e
   startX.value = event.clientX
   startY.value = event.clientY
@@ -282,12 +346,49 @@ const onResize = (e) => {
   const deltaX = event.clientX - startX.value
   const deltaY = event.clientY - startY.value
   
-  panelWidth.value = Math.max(320, Math.min(800, startWidth.value + deltaX))
-  panelHeight.value = Math.max(400, Math.min(800, startHeight.value + deltaY))
+  if (resizeEdge === 'bottom-right' || !resizeEdge) {
+    panelWidth.value = Math.max(320, Math.min(800, startWidth.value + deltaX))
+    panelHeight.value = Math.max(400, Math.min(800, startHeight.value + deltaY))
+  } else if (resizeEdge === 'right') {
+    panelWidth.value = Math.max(320, Math.min(800, startWidth.value + deltaX))
+  } else if (resizeEdge === 'bottom') {
+    panelHeight.value = Math.max(400, Math.min(800, startHeight.value + deltaY))
+  } else if (resizeEdge === 'left') {
+    const newWidth = Math.max(320, Math.min(800, startWidth.value - deltaX))
+    const diff = startWidth.value - newWidth
+    panelWidth.value = newWidth
+    position.value.x += diff
+  } else if (resizeEdge === 'top') {
+    const newHeight = Math.max(400, Math.min(800, startHeight.value - deltaY))
+    const diff = startHeight.value - newHeight
+    panelHeight.value = newHeight
+    position.value.y += diff
+  } else if (resizeEdge === 'top-left') {
+    const newWidth = Math.max(320, Math.min(800, startWidth.value - deltaX))
+    const newHeight = Math.max(400, Math.min(800, startHeight.value - deltaY))
+    panelWidth.value = newWidth
+    panelHeight.value = newHeight
+    position.value.x += startWidth.value - newWidth
+    position.value.y += startHeight.value - newHeight
+  } else if (resizeEdge === 'top-right') {
+    panelWidth.value = Math.max(320, Math.min(800, startWidth.value + deltaX))
+    const newHeight = Math.max(400, Math.min(800, startHeight.value - deltaY))
+    panelHeight.value = newHeight
+    position.value.y += startHeight.value - newHeight
+  } else if (resizeEdge === 'bottom-left') {
+    const newWidth = Math.max(320, Math.min(800, startWidth.value - deltaX))
+    panelWidth.value = newWidth
+    position.value.x += startWidth.value - newWidth
+    panelHeight.value = Math.max(400, Math.min(800, startHeight.value + deltaY))
+  }
 }
 
 const stopResize = () => {
   isResizing.value = false
+  resizeEdge = null
+  if (panelRef.value) {
+    panelRef.value.style.cursor = ''
+  }
   document.body.style.userSelect = ''
   
   document.removeEventListener('mousemove', onResize)
@@ -339,6 +440,12 @@ const loadChatHistory = async () => {
 const sendMessage = async () => {
   if (!inputText.value.trim() || isLoading.value) return
   
+  if (abortController) {
+    abortController.abort()
+  }
+  
+  abortController = new AbortController()
+  
   messages.value.push({
     id: Date.now(),
     role: 'user',
@@ -368,7 +475,8 @@ const sendMessage = async () => {
         userId: userId.value,
         content: messages.value[messages.value.length - 2].content,
         messageType: 'general'
-      })
+      }),
+      signal: abortController.signal
     })
     
     const reader = response.body.getReader()
@@ -383,31 +491,49 @@ const sendMessage = async () => {
       
       for (const line of lines) {
         const trimmedLine = line.trim()
-        if (trimmedLine && !trimmedLine.includes('[DONE]') && !trimmedLine.startsWith('event:') && !trimmedLine.startsWith('data:')) {
-          const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
-          if (aiMsgIndex !== -1) {
-            messages.value[aiMsgIndex].content += trimmedLine
-            scrollToBottom()
+        if (trimmedLine && !trimmedLine.includes('[DONE]')) {
+          let content = trimmedLine
+          if (content.startsWith('data:')) {
+            content = content.substring(5).trim()
+          }
+          if (content) {
+            const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
+            if (aiMsgIndex !== -1) {
+              messages.value[aiMsgIndex].content += content
+              scrollToBottom()
+            }
           }
         }
       }
     }
     
     isLoading.value = false
+    abortController = null
     
   } catch (error) {
-    console.error('AI聊天失败:', error)
-    isLoading.value = false
-    const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
-    if (aiMsgIndex !== -1) {
-      messages.value[aiMsgIndex].content = '网络连接异常，请稍后重试。'
+    if (error.name !== 'AbortError') {
+      console.error('AI聊天失败:', error)
+      const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
+      if (aiMsgIndex !== -1 && !messages.value[aiMsgIndex].content) {
+        messages.value[aiMsgIndex].content = '网络连接异常，请稍后重试。'
+      }
     }
+    isLoading.value = false
+    abortController = null
   }
 }
 
 const sendQuickAction = (text) => {
   inputText.value = text
   sendMessage()
+}
+
+const stopGeneration = () => {
+  if (abortController) {
+    abortController.abort()
+    abortController = null
+  }
+  isLoading.value = false
 }
 
 const handleResize = () => {
@@ -812,6 +938,32 @@ onUnmounted(() => {
 @keyframes loading-bounce {
   0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
   40% { transform: scale(1); opacity: 1; }
+}
+
+.loading-bubble {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stop-btn {
+  background: rgba(102, 126, 234, 0.15);
+  border: none;
+  color: #667eea;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.stop-btn:hover {
+  background: rgba(102, 126, 234, 0.3);
+  transform: scale(1.1);
 }
 
 .chat-input {
