@@ -63,6 +63,7 @@
           <span class="user-name">{{ auth.state.user.name }}</span>
           <span class="user-role">管理员</span>
         </div>
+        <el-button size="small" @click="goToHome" style="width: 100%; margin-bottom: 8px;">返回首页</el-button>
         <el-button size="small" @click="showChangePasswordDialog = true" style="width: 100%; margin-bottom: 8px;">修改密码</el-button>
         <el-button size="small" @click="handleLogout">退出登录</el-button>
       </div>
@@ -100,6 +101,7 @@ import { useAuth } from '../stores/auth'
 import { changePassword } from '../api/admin'
 import AIFloatButton from '../components/AIFloatButton.vue'
 
+
 const router = useRouter()
 const auth = useAuth()
 
@@ -112,6 +114,15 @@ const changePasswordForm = ref({
   newPassword: '',
   confirmPassword: ''
 })
+const handleLogout = () => {
+    auth.logout()
+    router.push('/')
+}
+
+const goToHome = () => {
+    window.open('/','_blank')
+}
+
 
 const handleChangePassword = async () => {
   if (!changePasswordForm.value.oldPassword || !changePasswordForm.value.newPassword || !changePasswordForm.value.confirmPassword) {
@@ -156,10 +167,7 @@ const handleChangePassword = async () => {
   }
 }
 
-const handleLogout = () => {
-  auth.logout()
-  router.push('/')
-}
+
 </script>
 
 <style scoped>
@@ -210,10 +218,34 @@ const handleLogout = () => {
   border-radius: 8px;
   height: 44px;
   line-height: 44px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+.sidebar-menu :deep(.el-menu-item):before {
+    content: '';
+position: absolute;
+left: 0;
+top: 0;
+width: 3px;
+height: 100%;
+background: linear-gradient(180deg, #667eea, #764ba2);
+transform: scaleY(0);
+transition: transform 0.3s ease;
 }
 
 .sidebar-menu :deep(.el-menu-item:hover) {
   background: rgba(102, 126, 234, 0.2);
+    transform: translateX(6px);
+    box-shadow: 0 2px 12px rgba(102,126,234,0.15);
+}
+
+.sidebar-menu :deep(.el-menu-item:hover)::before {
+    transform: scaleY(1);
+}
+
+.sidebar-menu :deep(.el-menu-item:hover .menu-icon) {
+    transform: scale(1.25) rotate(-5deg);
 }
 
 .sidebar-menu :deep(.el-menu-item.is-active) {
@@ -221,9 +253,21 @@ const handleLogout = () => {
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
+.sidebar-menu :deep(.el-menu-item.is-active .menu-icon) {
+    animation: icon-bounce 0.5s ease;
+}
+
+@keyframes icon-bounce {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.3) rotate(10deg); }
+    60% { transform: scale(0.95) rotate(-5deg); }
+    100% { transform: scale(1) rotate(0); }
+}
 .menu-icon {
   font-size: 18px;
   margin-right: 10px;
+    display: inline-block;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar-footer {
@@ -258,6 +302,12 @@ const handleLogout = () => {
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
   border: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0 20px;
+    box-sizing: border-box;
+    min-width: 0;
 }
 
 .sidebar-footer :deep(.el-button:hover) {
