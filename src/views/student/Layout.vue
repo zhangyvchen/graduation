@@ -118,9 +118,11 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { FullScreen } from '@element-plus/icons-vue'
+import { User, DataLine, Trophy, TrendCharts, Clock, ChatLineRound, FullScreen } from '@element-plus/icons-vue'
 import { changePassword } from '@/api/student'
 import { useAuth } from '@/stores/auth'
+
+let lastMoveTime = 0
 
 const router = useRouter()
 const route = useRoute()
