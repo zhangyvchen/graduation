@@ -25,6 +25,7 @@
       <el-table-column prop="employmentRate" label="就业率(%)" width="120" />
       <el-table-column prop="enrolledCount" label="升学人数" width="120" />
       <el-table-column prop="enrollmentRate" label="升学率(%)" width="120" />
+      <el-table-column prop="schoolName" label="学校名称" width="150" />
       <el-table-column prop="startTime" label="开始时间" width="150" />
       <el-table-column prop="endTime" label="结束时间" width="150" />
       <el-table-column prop="status" label="状态" width="100">
