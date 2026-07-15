@@ -1,7 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuth } from '../stores/auth'
+import studentRoutes from './student'
 
 const routes = [
+  ...studentRoutes,
   {
     path: '/',
     component: () => import('../layouts/StudentLayout.vue'),
@@ -12,33 +14,27 @@ const routes = [
         component: () => import('../views/Home.vue')
       },
       {
-        path: '/growth',
+        path: 'growth',
         name: 'Growth',
         component: () => import('../views/GrowthTrajectory.vue')
       },
       {
-        path: '/destination',
+        path: 'destination',
         name: 'Destination',
         component: () => import('../views/DestinationMap.vue')
       },
       {
-        path: '/learning',
+        path: 'learning',
         name: 'Learning',
         component: () => import('../views/LearningProfile.vue')
       },
       {
-        path: '/report',
+        path: 'report',
         name: 'Report',
         component: () => import('../views/ReportDownload.vue')
       },
       {
-        path: '/verify',
-        name: 'Verify',
-        component: () => import('../views/QRCodeVerification.vue'),
-        meta: { requiresAuth: true }
-      },
-      {
-        path: '/ending',
+        path: 'ending',
         name: 'Ending',
         component: () => import('../views/FooterEnding.vue')
       }
@@ -46,7 +42,7 @@ const routes = [
   },
   {
     path: '/login',
-    name: 'StudentLogin',
+    name: 'GuestLogin',
     component: () => import('../views/StudentLogin.vue')
   },
   {
@@ -85,11 +81,6 @@ const routes = [
         component: () => import('../views/AdminTemplate.vue')
       },
       {
-        path: 'verify',
-        name: 'AdminVerify',
-        component: () => import('../views/QRCodeVerification.vue')
-      },
-      {
         path: 'ai',
         name: 'AdminAI',
         component: () => import('../views/AdminAI.vue')
@@ -98,6 +89,11 @@ const routes = [
         path: 'import',
         name: 'AdminImport',
         component: () => import('../views/AdminImport.vue')
+      },
+      {
+        path: 'verify',
+        name: 'AdminVerify',
+        component: () => import('../views/AdminVerify.vue')
       },
       {
         path: 'report/:year',
@@ -121,12 +117,19 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const auth = useAuth()
   const currentRole = auth.state.role?.toUpperCase()
-  
-  if (to.path === '/admin/login') {
+
+  if (to.path === '/admin/login' || to.path === '/student/login') {
     next()
     return
   }
-  
+
+  if (to.path.startsWith('/student/') && to.path !== '/student/login') {
+    if (!auth.state.isLoggedIn || currentRole !== 'STUDENT') {
+      next('/student/login')
+      return
+    }
+  }
+
   if (to.meta.requiresAuth) {
     if (!auth.state.isLoggedIn) {
       if (to.meta.role?.toUpperCase() === 'ADMIN') {
@@ -136,7 +139,7 @@ router.beforeEach((to, from, next) => {
       }
       return
     }
-    
+
     if (to.meta.role && currentRole !== to.meta.role.toUpperCase()) {
       if (currentRole === 'ADMIN') {
         next('/admin/dashboard')
@@ -146,10 +149,10 @@ router.beforeEach((to, from, next) => {
       return
     }
   }
-  
+
   if (auth.state.isLoggedIn && currentRole === 'STUDENT') {
     if (to.path === '/login') {
-      next('/verify')
+      next('/student/verify')
       return
     }
     if (to.path.startsWith('/admin')) {
@@ -157,14 +160,14 @@ router.beforeEach((to, from, next) => {
       return
     }
   }
-  
+
   if (auth.state.isLoggedIn && currentRole === 'ADMIN') {
     if (to.path === '/login') {
       next('/admin/dashboard')
       return
     }
   }
-  
+
   next()
 })
 
