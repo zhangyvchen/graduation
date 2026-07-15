@@ -103,6 +103,11 @@ const routes = [
         path: 'report/:year',
         name: 'AdminReport',
         component: () => import('../views/AdminReport.vue')
+      },
+      {
+        path: 'student-report/:studentId',
+        name: 'AdminStudentReport',
+        component: () => import('../views/AdminStudentReport.vue')
       }
     ]
   }

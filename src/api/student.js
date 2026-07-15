@@ -51,3 +51,17 @@ export function deleteStudent(id) {
     method: 'delete'
   })
 }
+
+export function getStudentReportData(studentId) {
+  return request({
+    url: `/student-report/${studentId}`,
+    method: 'get'
+  })
+}
+
+export function generateStudentReport(studentId, templateId) {
+  return request({
+    url: `/student-report/generate/${studentId}/${templateId}`,
+    method: 'get'
+  })
+}

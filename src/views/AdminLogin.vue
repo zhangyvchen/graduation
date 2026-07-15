@@ -97,41 +97,43 @@ const handleLogin = async () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #F8FAF9 0%, #EDF5F3 40%, #E8EEED 70%, #DDE9E7 100%);
 }
 
 .login-box {
-  width: 400px;
-  background: #fff;
-  padding: 45px;
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  width: 380px;
+  background: #FFFFFF;
+  padding: 48px 40px;
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(45, 90, 122, 0.08);
+  border: 1px solid #E8EEED;
 }
 
 .login-header {
   text-align: center;
-  margin-bottom: 35px;
+  margin-bottom: 36px;
 }
 
 .login-icon {
-  font-size: 48px;
-  margin-bottom: 15px;
+  font-size: 52px;
+  margin-bottom: 14px;
 }
 
 .login-header h2 {
   margin: 0 0 8px 0;
-  color: #333;
+  color: #2D5A7A;
   font-size: 24px;
+  font-weight: 600;
 }
 
 .login-subtitle {
-  color: #999;
+  color: #8BA4C4;
   font-size: 14px;
   margin: 0;
 }
 
 .login-form {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .login-form :deep(.el-form-item) {
@@ -139,12 +141,22 @@ const handleLogin = async () => {
 }
 
 .login-form :deep(.el-input__wrapper) {
-  border-radius: 8px;
+  border-radius: 12px;
+  border-color: #E8EEED;
+  box-shadow: none;
+}
+
+.login-form :deep(.el-input__wrapper:hover) {
+  border-color: #B6DDDC;
+}
+
+.login-form :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 2px rgba(182, 221, 220, 0.3);
 }
 
 .login-form :deep(.el-button) {
   height: 44px;
-  font-size: 16px;
-  border-radius: 8px;
+  font-size: 15px;
+  border-radius: 12px;
 }
 </style>

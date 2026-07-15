@@ -152,8 +152,11 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
+
 .content-header h2 {
-  color: #333;
+  color: #2D5A7A;
+  font-size: 22px;
+  font-weight: 600;
 }
 
 .welcome-card {
@@ -164,21 +167,24 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 20px;
-  padding: 30px;
+  padding: 28px;
 }
 
 .welcome-icon {
-  font-size: 64px;
+  font-size: 58px;
 }
 
 .welcome-info h3 {
-  margin: 0 0 10px 0;
-  color: #333;
+  margin: 0 0 8px 0;
+  color: #2D5A7A;
+  font-size: 20px;
+  font-weight: 600;
 }
 
 .welcome-info p {
-  color: #666;
+  color: #7A9AAC;
   margin: 0;
+  font-size: 14px;
 }
 
 .quick-stats {
@@ -191,34 +197,34 @@ onMounted(() => {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 18px;
   padding: 20px;
   cursor: default;
 }
 
 .stat-card.clickable {
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
 }
 
 .stat-card.clickable:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(45, 90, 122, 0.08);
 }
 
 .stat-icon {
-  font-size: 48px;
+  font-size: 44px;
 }
 
 .stat-value {
-  font-size: 32px;
-  font-weight: bold;
-  color: #667eea;
+  font-size: 30px;
+  font-weight: 600;
+  color: #2D5A7A;
 }
 
 .stat-label {
-  font-size: 14px;
-  color: #999;
+  font-size: 13px;
+  color: #7A9AAC;
 }
 
 .recent-activities {
@@ -228,6 +234,6 @@ onMounted(() => {
 .empty-tip {
   text-align: center;
   padding: 30px;
-  color: #999;
+  color: #7A9AAC;
 }
 </style>
