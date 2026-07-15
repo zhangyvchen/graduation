@@ -164,7 +164,12 @@ const loadData = async () => {
           s.push(...MOCK_DATA.scholarship)
         }
         growthData.value = {
-          honor: { national: h[2]||0, provincial: h[1]||0, school: h[0]||0, college: 0 },
+          honor: {
+            national: h[2] || 0,
+            provincial: h[1] || 0,
+            school: h[0] || 0,
+            college: h[3] || 0
+          },
           scholarship: s,
           cadre: c,
           party: p

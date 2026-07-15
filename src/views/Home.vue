@@ -35,6 +35,27 @@
       </el-card>
     </div>
 
+    <!-- 功能专区 -->
+    <el-row :gutter="20" style="margin-top: 24px;">
+      <el-col :span="24">
+        <el-card>
+          <template #header>
+            <span>🔥 毕业生服务专区</span>
+          </template>
+          <div class="service-cards">
+            <div class="service-card" @click="goToVerify">
+              <div class="service-icon scan">📱</div>
+              <div class="service-info">
+                <div class="service-title">扫码核销</div>
+                <div class="service-desc">出示个人二维码完成身份核销，查看个人分析报告</div>
+              </div>
+              <el-button type="primary" size="small" round>立即进入</el-button>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
     <el-row :gutter="20" style="margin-top: 24px;">
       <el-col :span="12">
         <el-card>
@@ -55,7 +76,12 @@
 <script setup>
 import { getOverview } from '../api/graduationData'
 import * as echarts from 'echarts'
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuth } from '../stores/auth'
+
+const router = useRouter()
+const auth = useAuth()
 
 const selectedYear = ref(2024)
 const years = ref([2020, 2021, 2022, 2023, 2024, 2025, 2026])
@@ -173,6 +199,15 @@ const updateTrendChart = () => {
     ]
   })
 }
+
+const goToVerify = () => {
+  // 已学生登录则直接进入学生核销页，否则跳转到学生登录页并携带回调地址
+  if (auth.state.isLoggedIn && auth.state.role?.toUpperCase() === 'STUDENT') {
+    router.push('/student/verify')
+  } else {
+    router.push('/student/login?redirect=/student/verify')
+  }
+}
 </script>
 
 <style scoped>
@@ -205,5 +240,52 @@ const updateTrendChart = () => {
 .stat-label {
   font-size: 14px;
   color: #999;
+}
+.service-cards {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.service-card {
+  flex: 1;
+  min-width: 280px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.service-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
+}
+.service-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  flex-shrink: 0;
+}
+.service-icon.scan {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+.service-info {
+  flex: 1;
+}
+.service-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #303133;
+  margin-bottom: 6px;
+}
+.service-desc {
+  font-size: 13px;
+  color: #909399;
 }
 </style>

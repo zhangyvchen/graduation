@@ -25,9 +25,6 @@
         <router-link to="/report" class="nav-link" :class="{ active: $route.path === '/report' }">
           <span>📄</span> 报告下载
         </router-link>
-        <router-link to="/verify" class="nav-link" :class="{ active: $route.path === '/verify' }">
-          <span>✅</span> 扫码核销
-        </router-link>
         <router-link to="/ending" class="nav-link" :class="{ active: $route.path === '/ending' }">
           <span>💬</span> 毕业纪念
         </router-link>
@@ -119,6 +116,7 @@ const handleLogout = () => {
   router.push('/')
 }
 
+// 加载尾页数据（从后台配置读取）
 const loadFooterData = async () => {
   try {
     const res = await getTemplateList({ type: 'footer' })

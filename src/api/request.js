@@ -9,28 +9,44 @@ const request = axios.create({
   }
 })
 
-request.interceptors.request.use(
-  (config) => {
-    const auth = localStorage.getItem('graduation_auth')
-    if (auth) {
-      const authData = JSON.parse(auth)
-      if (authData.user && authData.user.token) {
-        config.headers.Authorization = `Bearer ${authData.user.token}`
-      }
-    }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
+request.interceptors.request.use(config => {
+  const token = localStorage.getItem('token') || localStorage.getItem('student_token')
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`
   }
-)
+  return config
+})
 
 request.interceptors.response.use(
-  (response) => {
-    return response.data
-  },
-  (error) => {
-    console.error('Request error:', error)
+  response => response.data,
+  error => {
+    // 调试：打印 401/403 详细信息
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      console.error('[request error]', error.response.status, error.config?.url, 'token=', localStorage.getItem('token')?.slice(0, 20))
+    }
+    if (error.response && error.response.status === 401) {
+      const pathname = window.location.pathname
+      // 已在登录页时不要重复跳转
+      if (pathname === '/admin/login' || pathname === '/student/login' || pathname === '/login') {
+        return Promise.reject(error)
+      }
+      // 区分学生端和管理端
+      if (localStorage.getItem('student_token')) {
+        localStorage.removeItem('student_token')
+        localStorage.removeItem('student_info')
+        if (pathname.startsWith('/student')) {
+          window.location.href = '/student/login'
+        }
+      } else {
+        if (pathname.startsWith('/admin')) {
+          window.location.href = '/admin/login'
+        } else if (pathname.startsWith('/student')) {
+          window.location.href = '/student/login'
+        } else {
+          window.location.href = '/login'
+        }
+      }
+    }
     return Promise.reject(error)
   }
 )
