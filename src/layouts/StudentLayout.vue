@@ -98,7 +98,6 @@ import { useRouter } from 'vue-router'
 import { useAuth } from '../stores/auth'
 import { ArrowDown } from '@element-plus/icons-vue'
 import { getTemplateList } from '../api/template'
-import {createRouter as $router} from "vue-router/dist/vue-router.esm-browser";
 
 const router = useRouter()
 const auth = useAuth()

@@ -14,27 +14,27 @@ const routes = [
         component: () => import('../views/Home.vue')
       },
       {
-        path: '/growth',
+        path: 'growth',
         name: 'Growth',
         component: () => import('../views/GrowthTrajectory.vue')
       },
       {
-        path: '/destination',
+        path: 'destination',
         name: 'Destination',
         component: () => import('../views/DestinationMap.vue')
       },
       {
-        path: '/learning',
+        path: 'learning',
         name: 'Learning',
         component: () => import('../views/LearningProfile.vue')
       },
       {
-        path: '/report',
+        path: 'report',
         name: 'Report',
         component: () => import('../views/ReportDownload.vue')
       },
       {
-        path: '/ending',
+        path: 'ending',
         name: 'Ending',
         component: () => import('../views/FooterEnding.vue')
       }
