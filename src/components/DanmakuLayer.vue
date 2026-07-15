@@ -36,8 +36,8 @@
             size="small"
             :type="enabled ? 'warning' : 'success'"
             @click="toggleDanmaku"
-            :icon="enabled ? '✖' : '💬'"
         >
+          <span style="margin-right: 4px;">{{ enabled ? '✖' : '💬' }}</span>
           {{ enabled ? '关闭弹幕' : '开启弹幕' }}
         </el-button>
       </div>
@@ -231,6 +231,7 @@ onUnmounted(() => {
   color: #999;
   font-size: 14px;
 }
+
 
 .danmaku-closed :deep(.el-button) {
   border-radius: 20px;

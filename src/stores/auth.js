@@ -51,6 +51,9 @@ export const useAuth = () => {
     state.user = null
     state.role = null
     sessionStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem('token')
+    localStorage.removeItem('student_token')
+    localStorage.removeItem('student_info')
   }
 
   const isAdmin = () => {

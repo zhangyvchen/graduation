@@ -38,13 +38,6 @@
           <div class="stat-label">报告模板</div>
         </div>
       </el-card>
-      <el-card class="stat-card clickable" @click="router.push('/admin/verify')">
-        <div class="stat-icon">✅</div>
-        <div class="stat-info">
-          <div class="stat-value">{{ stats.totalVerified }}</div>
-          <div class="stat-label">已核销</div>
-        </div>
-      </el-card>
     </div>
     
     <div class="recent-activities">
@@ -87,8 +80,7 @@ const loading = ref(false)
 const stats = ref({
   totalBatches: 0,
   totalStudents: 0,
-  totalTemplates: 0,
-  totalVerified: 0
+  totalTemplates: 0
 })
 
 const activities = ref([])
@@ -124,7 +116,7 @@ const fetchStats = async () => {
     }
     
     if (studentRes.code === 200) {
-      stats.value.totalStudents = studentRes.data.length
+      stats.value.totalStudents = studentRes.data.total || 0
     }
   } catch (error) {
     console.error('获取统计数据失败:', error)

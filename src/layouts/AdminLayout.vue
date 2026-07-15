@@ -43,18 +43,19 @@
           </template>
           报告模板配置
         </el-menu-item>
-        <el-menu-item index="/admin/verify">
-          <template #icon>
-            <span class="menu-icon">✅</span>
-          </template>
-          核销管理
-        </el-menu-item>
 
         <el-menu-item index="/admin/import">
           <template #icon>
             <span class="menu-icon">📥</span>
           </template>
           数据导入
+        </el-menu-item>
+
+        <el-menu-item index="/admin/verify">
+          <template #icon>
+            <span class="menu-icon">📱</span>
+          </template>
+          扫码核销
         </el-menu-item>
 
       </el-menu>

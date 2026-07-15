@@ -41,6 +41,8 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../stores/auth'
+import { studentLogin } from '../api/student'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const auth = useAuth()
@@ -52,25 +54,53 @@ const loginForm = ref({
 
 const isLoading = ref(false)
 
-const handleLogin = () => {
+const handleLogin = async () => {
   if (!loginForm.value.studentId || !loginForm.value.password) {
-    alert('请输入学号和密码')
+    ElMessage.warning('请输入学号和密码')
     return
   }
-  
+
   isLoading.value = true
-  
-  setTimeout(() => {
-    auth.login({
+  try {
+    // 调用后端学生登录接口
+    const res = await studentLogin({
       studentId: loginForm.value.studentId,
-      name: loginForm.value.studentId,
-      className: '软件工程2001班',
-      batchYear: 2024,
-      role: 'student'
+      password: loginForm.value.password
     })
-    
-    router.push('/verify')
-  }, 500)
+
+    if (res.code === 200) {
+      const data = res.data
+      // 保存 token
+      localStorage.setItem('student_token', data.token)
+      localStorage.setItem('student_id', data.studentId)
+
+      // 保存完整用户信息（Layout.vue 依赖这个）
+      const userInfo = {
+        studentId: data.studentId,
+        name: data.name,
+        className: data.className,
+        batchYear: data.batchYear,
+        major: data.major,
+        college: data.college,
+        role: 'student'
+      }
+      localStorage.setItem('student_info', JSON.stringify(userInfo))
+
+      // 更新 auth store
+      auth.login(userInfo)
+
+      ElMessage.success('登录成功')
+      // 跳转到学生个人中心
+      router.push('/student/profile')
+    } else {
+      ElMessage.error(res.message || '登录失败')
+    }
+  } catch (err) {
+    console.error('登录错误:', err)
+    ElMessage.error('登录失败：' + (err.message || '网络错误'))
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 

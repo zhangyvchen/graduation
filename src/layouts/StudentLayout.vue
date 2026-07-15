@@ -25,9 +25,6 @@
         <router-link to="/report" class="nav-link" :class="{ active: $route.path === '/report' }">
           <span>📄</span> 报告下载
         </router-link>
-        <router-link to="/verify" class="nav-link" :class="{ active: $route.path === '/verify' }">
-          <span>✅</span> 扫码核销
-        </router-link>
         <router-link to="/ending" class="nav-link" :class="{ active: $route.path === '/ending' }">
           <span>💬</span> 毕业纪念
         </router-link>
@@ -43,7 +40,7 @@
           </span>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item @click="$router.push('/verify')">我的报告</el-dropdown-item>
+              <el-dropdown-item @click="$router.push('/student/verify')">我的报告</el-dropdown-item>
               <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>

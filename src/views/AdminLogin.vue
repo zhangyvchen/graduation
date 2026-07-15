@@ -71,13 +71,18 @@ const handleLogin = async () => {
     
     if (response.code === 200 && response.data) {
       const data = response.data
-      auth.login({
+      localStorage.setItem('token', data.token)
+      const userData = {
         token: data.token,
         id: data.id,
         username: data.username,
         name: data.name,
-        role: data.role
-      })
+        role: data.role || 'admin'
+      }
+      auth.login(userData)
+      // 强制再次设置 role，避免后端 role 字段为空导致守卫误判
+      auth.state.role = (userData.role || 'admin').toUpperCase()
+      console.log('[admin login success] role=', auth.state.role, 'token=', data.token?.slice(0, 20))
       ElMessage.success('登录成功')
       router.push('/admin/dashboard')
     } else {
