@@ -51,7 +51,7 @@
               </svg>
             </div>
             <div class="message-content">
-              <span class="message-text">{{ msg.content }}</span>
+              <span class="message-text" v-html="formatMessageContent(msg.content)"></span>
               <span class="message-time">{{ msg.time || formatTime() }}</span>
             </div>
           </div>
@@ -105,6 +105,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { useAuth } from '../stores/auth'
 
 const isOpen = ref(false)
 const isLoading = ref(false)
@@ -113,10 +114,17 @@ const unreadCount = ref(0)
 const inputText = ref('')
 const userId = ref('user_' + new Date().getTime())
 const messagesContainer = ref(null)
+
+const { state: authState, isAdmin } = useAuth()
 const panelRef = ref(null)
 let isMounted = false
 let resizeEdge = null
 let abortController = null
+
+if (window.__aiFloatButtonMounted__) {
+  throw new Error('AIFloatButton should only be mounted once')
+}
+window.__aiFloatButtonMounted__ = true
 
 const aiAvatarUrl = ref('/static/AI_1.png')
 const aiAvatarHeaderUrl = ref('/static/AI_2.png')
@@ -153,7 +161,9 @@ const containerStyle = computed(() => ({
 
 const panelStyle = computed(() => ({
   width: `${panelWidth.value}px`,
-  height: `${panelHeight.value}px`
+  height: `${panelHeight.value}px`,
+  left: `${position.value.x - panelWidth.value + 56}px`,
+  bottom: `${window.innerHeight - position.value.y + 12}px`
 }))
 
 const messages = ref([
@@ -167,6 +177,11 @@ const messages = ref([
 
 const formatTime = () => {
   return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
+
+const formatMessageContent = (content) => {
+  if (!content) return ''
+  return content.replace(/\n/g, '<br/>')
 }
 
 const scrollToBottom = () => {
@@ -191,12 +206,16 @@ const toggleChat = () => {
 }
 
 const startDrag = (e) => {
+  e.preventDefault()
+  e.stopPropagation()
   isDragging.value = true
   const event = e.touches ? e.touches[0] : e
   startX.value = event.clientX
   startY.value = event.clientY
   startPosX.value = position.value.x
   startPosY.value = position.value.y
+  
+  document.body.style.userSelect = 'none'
   
   document.addEventListener('mousemove', onDrag)
   document.addEventListener('mouseup', stopDrag)
@@ -230,6 +249,7 @@ const onDrag = (e) => {
 
 const stopDrag = () => {
   isDragging.value = false
+  document.body.style.userSelect = ''
   snapToEdge()
   savePosition()
   
@@ -268,30 +288,22 @@ const onPanelMouseMove = (e) => {
   if (!panelRef.value || isResizing.value || isDragging.value) return
   
   const rect = panelRef.value.getBoundingClientRect()
-  const padding = 8
+  const padding = 10
   const x = e.clientX - rect.left
   const y = e.clientY - rect.top
   
   let cursor = ''
+  resizeEdge = null
   
-  if (x < padding) {
-    cursor = 'ew-resize'
-    resizeEdge = 'left'
+  if (x > rect.width - padding && y > rect.height - padding) {
+    cursor = 'nwse-resize'
+    resizeEdge = 'bottom-right'
   } else if (x > rect.width - padding) {
     cursor = 'ew-resize'
     resizeEdge = 'right'
-  } else {
-    resizeEdge = null
-  }
-  
-  if (y < padding) {
-    cursor = cursor ? 'nwse-resize' : 'ns-resize'
-    resizeEdge = cursor.includes('n') ? (resizeEdge ? 'top-' + resizeEdge : 'top') : null
   } else if (y > rect.height - padding) {
-    cursor = cursor ? 'nwse-resize' : 'ns-resize'
-    resizeEdge = cursor.includes('s') ? (resizeEdge ? 'bottom-' + resizeEdge : 'bottom') : null
-  } else if (!cursor) {
-    resizeEdge = null
+    cursor = 'ns-resize'
+    resizeEdge = 'bottom'
   }
   
   panelRef.value.style.cursor = cursor || ''
@@ -323,7 +335,9 @@ const startResize = (e) => {
   e.preventDefault()
   e.stopPropagation()
   isResizing.value = true
-  resizeEdge = 'bottom-right'
+  if (resizeEdge === null) {
+    resizeEdge = 'bottom-right'
+  }
   const event = e.touches ? e.touches[0] : e
   startX.value = event.clientX
   startY.value = event.clientY
@@ -346,40 +360,17 @@ const onResize = (e) => {
   const deltaX = event.clientX - startX.value
   const deltaY = event.clientY - startY.value
   
+  const panelLeft = position.value.x - panelWidth.value + 56
+  const maxWidth = window.innerWidth - panelLeft - 20
+  const maxHeight = position.value.y - 90
+  
   if (resizeEdge === 'bottom-right' || !resizeEdge) {
-    panelWidth.value = Math.max(320, Math.min(800, startWidth.value + deltaX))
-    panelHeight.value = Math.max(400, Math.min(800, startHeight.value + deltaY))
+    panelWidth.value = Math.max(320, Math.min(maxWidth, startWidth.value + deltaX))
+    panelHeight.value = Math.max(400, Math.min(maxHeight, startHeight.value + deltaY))
   } else if (resizeEdge === 'right') {
-    panelWidth.value = Math.max(320, Math.min(800, startWidth.value + deltaX))
+    panelWidth.value = Math.max(320, Math.min(maxWidth, startWidth.value + deltaX))
   } else if (resizeEdge === 'bottom') {
-    panelHeight.value = Math.max(400, Math.min(800, startHeight.value + deltaY))
-  } else if (resizeEdge === 'left') {
-    const newWidth = Math.max(320, Math.min(800, startWidth.value - deltaX))
-    const diff = startWidth.value - newWidth
-    panelWidth.value = newWidth
-    position.value.x += diff
-  } else if (resizeEdge === 'top') {
-    const newHeight = Math.max(400, Math.min(800, startHeight.value - deltaY))
-    const diff = startHeight.value - newHeight
-    panelHeight.value = newHeight
-    position.value.y += diff
-  } else if (resizeEdge === 'top-left') {
-    const newWidth = Math.max(320, Math.min(800, startWidth.value - deltaX))
-    const newHeight = Math.max(400, Math.min(800, startHeight.value - deltaY))
-    panelWidth.value = newWidth
-    panelHeight.value = newHeight
-    position.value.x += startWidth.value - newWidth
-    position.value.y += startHeight.value - newHeight
-  } else if (resizeEdge === 'top-right') {
-    panelWidth.value = Math.max(320, Math.min(800, startWidth.value + deltaX))
-    const newHeight = Math.max(400, Math.min(800, startHeight.value - deltaY))
-    panelHeight.value = newHeight
-    position.value.y += startHeight.value - newHeight
-  } else if (resizeEdge === 'bottom-left') {
-    const newWidth = Math.max(320, Math.min(800, startWidth.value - deltaX))
-    panelWidth.value = newWidth
-    position.value.x += startWidth.value - newWidth
-    panelHeight.value = Math.max(400, Math.min(800, startHeight.value + deltaY))
+    panelHeight.value = Math.max(400, Math.min(maxHeight, startHeight.value + deltaY))
   }
 }
 
@@ -465,16 +456,25 @@ const sendMessage = async () => {
     time: formatTime()
   })
   
-  try {
+  const userContent = messages.value[messages.value.length - 2].content
+    const yearMatch = userContent.match(/(\d{4})年/)
+    const year = yearMatch ? parseInt(yearMatch[1]) : new Date().getFullYear()
+    
+    const currentUserId = authState.user?.studentId || authState.user?.username || (authState.isLoggedIn ? userId.value : null)
+    const currentRole = authState.isLoggedIn ? (authState.role || 'student') : 'guest'
+    
+    try {
     const response = await fetch('/api/ai/chat/stream', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        userId: userId.value,
-        content: messages.value[messages.value.length - 2].content,
-        messageType: 'general'
+        userId: currentUserId,
+        content: userContent,
+        year: year,
+        messageType: 'general',
+        userRole: currentRole
       }),
       signal: abortController.signal
     })
@@ -561,6 +561,7 @@ onUnmounted(() => {
   document.removeEventListener('mouseleave', stopDrag)
   document.removeEventListener('touchmove', onDrag)
   document.removeEventListener('touchend', stopDrag)
+  window.__aiFloatButtonMounted__ = false
 })
 </script>
 
@@ -570,6 +571,8 @@ onUnmounted(() => {
   z-index: 9999;
   cursor: grab;
   transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), top 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .ai-float-container:active {
@@ -701,9 +704,7 @@ onUnmounted(() => {
   box-shadow: 0 25px 80px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.05);
   margin-bottom: 12px;
   overflow: hidden;
-  position: absolute;
-  bottom: 70px;
-  right: 0;
+  position: fixed;
   animation: panel-appear 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -725,6 +726,8 @@ onUnmounted(() => {
   padding: 20px 24px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .chat-title {
