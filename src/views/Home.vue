@@ -76,7 +76,7 @@
 <script setup>
 import { getOverview } from '../api/graduationData'
 import * as echarts from 'echarts'
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../stores/auth'
 
