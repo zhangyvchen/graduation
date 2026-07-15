@@ -72,7 +72,6 @@
     <main class="main-content">
       <router-view />
     </main>
-    <AIFloatButton />
 
     <el-dialog title="修改密码" v-model="showChangePasswordDialog" width="400px" :close-on-click-modal="false">
       <el-form :model="changePasswordForm" label-width="80px">
@@ -100,7 +99,6 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuth } from '../stores/auth'
 import { changePassword } from '../api/admin'
-import AIFloatButton from '../components/AIFloatButton.vue'
 
 
 const router = useRouter()
