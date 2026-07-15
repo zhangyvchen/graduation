@@ -122,12 +122,12 @@
         </el-form-item>
         <el-form-item label="包含章节">
           <el-checkbox-group v-model="formData.sections" class="sections-group">
-            <el-checkbox label="👤 基本信息" />
-            <el-checkbox label="📈 成长轨迹" />
-            <el-checkbox label="📚 学习画像" />
-            <el-checkbox label="💼 就业去向" />
-            <el-checkbox label="🏆 综合素质" />
-            <el-checkbox label="💡 未来建议" />
+            <el-checkbox label="基本信息">👤 基本信息</el-checkbox>
+            <el-checkbox label="成长轨迹">📈 成长轨迹</el-checkbox>
+            <el-checkbox label="学习画像">📚 学习画像</el-checkbox>
+            <el-checkbox label="就业去向">💼 就业去向</el-checkbox>
+            <el-checkbox label="综合素质">🏆 综合素质</el-checkbox>
+            <el-checkbox label="未来建议">💡 未来建议</el-checkbox>
           </el-checkbox-group>
         </el-form-item>
         <el-form-item label="模板内容">
@@ -293,7 +293,10 @@ const handleAdd = () => {
 
 const handleEdit = (template) => {
   isEdit.value = true
-  formData.value = { ...template }
+  formData.value = {
+    ...template,
+    sections: template.sections ? JSON.parse(template.sections) : []
+  }
   dialogVisible.value = true
 }
 
@@ -364,10 +367,7 @@ const handleSubmit = async () => {
     
     if (isEdit.value) {
       await updateTemplate(submitData)
-      const index = templateList.value.findIndex(item => item.id === formData.value.id)
-      if (index !== -1) {
-        templateList.value[index] = { ...formData.value }
-      }
+      await fetchTemplates()
     } else {
       submitData.status = 'ENABLED'
       submitData.isDefault = false
