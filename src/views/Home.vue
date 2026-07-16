@@ -208,6 +208,7 @@ const goToVerify = () => {
     router.push('/student/login?redirect=/student/verify')
   }
 }
+
 </script>
 
 <style scoped>

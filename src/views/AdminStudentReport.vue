@@ -10,7 +10,18 @@
         <p class="subtitle">学号：{{ studentInfo.studentId }} | {{ studentInfo.className }}</p>
       </div>
       <div class="header-actions">
-        <el-button type="primary" @click="downloadReport">下载报告</el-button>
+        <el-dropdown @command="handleDownload">
+          <el-button type="primary">
+            📥 下载报告 <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="png">🖼️ PNG 图片</el-dropdown-item>
+              <el-dropdown-item command="pdf">📄 PDF 文档</el-dropdown-item>
+              <el-dropdown-item command="jpg">🖼️ JPG 图片</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </header>
 
@@ -20,7 +31,7 @@
     </div>
 
     <div v-else class="report-content">
-      <div class="report-card" :class="selectedTemplate?.type || 'full'">
+      <div ref="reportCardRef" class="report-card" :class="selectedTemplate?.type || 'full'">
         <div class="card-header" :class="selectedTemplate?.type || 'full'">
           <div class="school-info">
             <h1>毕业数据报告</h1>
@@ -118,11 +129,15 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElLoading } from 'element-plus'
 import { getStudentReportData } from '../api/student'
+import { useAuth } from '../stores/auth'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuth()
 
 const schoolName = ref('')
 const studentInfo = ref({})
@@ -512,9 +527,11 @@ const goBack = () => {
 const fetchReportData = async () => {
   try {
     const studentId = route.params.studentId
-    console.log('Fetching report data for studentId:', studentId)
+    console.log('[AdminStudentReport] 开始加载报告数据, studentId:', studentId)
+    console.log('[AdminStudentReport] 当前角色:', auth.state.role)
+    console.log('[AdminStudentReport] 是否已登录:', auth.state.isLoggedIn)
     const res = await getStudentReportData(studentId)
-    console.log('API response:', res)
+    console.log('[AdminStudentReport] API响应:', res)
     if (res.code === 200) {
       studentInfo.value = res.data.student || {}
       destinationData.value = res.data.destinationData || []
@@ -561,8 +578,56 @@ const renderReport = () => {
   }
 }
 
-const downloadReport = () => {
-  ElMessage.warning('下载功能开发中')
+const reportCardRef = ref(null)
+
+const handleDownload = async (format) => {
+  const card = reportCardRef.value
+  if (!card) {
+    ElMessage.error('报告内容未加载完成')
+    return
+  }
+
+  const loadingInstance = ElLoading.service({
+    lock: true,
+    text: '正在生成报告...',
+    background: 'rgba(0, 0, 0, 0.5)'
+  })
+
+  try {
+    const canvas = await html2canvas(card, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#FFFFFF',
+      logging: false
+    })
+
+    const fileName = `${studentInfo.value.studentId}_${studentInfo.value.name}_毕业报告`
+
+    if (format === 'pdf') {
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      })
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height)
+      pdf.save(`${fileName}.pdf`)
+    } else {
+      const mimeType = format === 'jpg' ? 'image/jpeg' : 'image/png'
+      const ext = format === 'jpg' ? 'jpg' : 'png'
+      const link = document.createElement('a')
+      link.download = `${fileName}.${ext}`
+      link.href = canvas.toDataURL(mimeType)
+      link.click()
+    }
+
+    ElMessage.success('报告下载成功')
+  } catch (error) {
+    console.error('下载失败:', error)
+    ElMessage.error('报告下载失败，请重试')
+  } finally {
+    loadingInstance.close()
+  }
 }
 
 onMounted(async () => {

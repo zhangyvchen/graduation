@@ -41,7 +41,7 @@
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item v-if="auth.isAdmin()" @click="router.push('/admin/dashboard')">返回管理首页</el-dropdown-item>
-              <el-dropdown-item v-if ="auth.isStudent()" @click="router.push('/verify')">我的报告</el-dropdown-item>
+              <el-dropdown-item v-if ="auth.isStudent()" @click="router.push('/student/profile')">返回学生中心</el-dropdown-item>
               <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -93,7 +93,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../stores/auth'
 import { ArrowDown } from '@element-plus/icons-vue'
@@ -101,6 +101,10 @@ import { getTemplateList } from '../api/template'
 
 const router = useRouter()
 const auth = useAuth()
+
+const isOnReportPage = computed(() => {
+  return router.currentRoute.value.path.startsWith('/admin/student-report/')
+})
 
 const footerData = ref({
   deanMessage: '',
@@ -113,6 +117,23 @@ let isMounted = false
 const handleLogout = () => {
   auth.logout()
   router.push('/')
+}
+
+const goToMyReport = () => {
+  const studentId = auth.state.user?.studentId || localStorage.getItem('student_id')
+  if (studentId) {
+    router.push(`/admin/student-report/${studentId}`)
+  } else {
+    ElMessage.error('无法获取学号，请重新登录')
+  }
+}
+
+const handleStudentNavigation = () => {
+  if (isOnReportPage.value) {
+    router.push('/')
+  } else {
+    goToMyReport()
+  }
 }
 
 // 加载尾页数据（从后台配置读取）
