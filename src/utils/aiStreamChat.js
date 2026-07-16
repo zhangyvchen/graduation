@@ -29,6 +29,7 @@ function parseSSEEvent(eventText) {
 export async function streamAIChat({
   content,
   userId,
+  adminId,
   year,
   messageType = 'general',
   userRole = 'guest',
@@ -42,6 +43,7 @@ export async function streamAIChat({
     },
     body: JSON.stringify({
       userId,
+      adminId,
       content,
       year,
       messageType,
