@@ -102,6 +102,11 @@ const routes = [
         component: () => import('../views/AdminVerify.vue')
       },
       {
+        path: 'message',
+        name: 'AdminMessage',
+        component: () => import('../views/AdminMessage.vue')
+      },
+      {
         path: 'report/:year',
         name: 'AdminReport',
         component: () => import('../views/AdminReport.vue')
