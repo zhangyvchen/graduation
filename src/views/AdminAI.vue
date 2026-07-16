@@ -69,10 +69,10 @@
             placeholder="输入您的问题，例如：2024届就业率趋势分析"
             @keyup.enter="handleSend"
             size="large"
-            :disabled="isLoading"
+            :disabled="isStreaming"
             clearable
           />
-          <el-button type="primary" @click="handleSend" :loading="isLoading">
+          <el-button type="primary" @click="handleSend" :loading="isStreaming" :disabled="isStreaming">
             <el-icon><Send /></el-icon> 发送
           </el-button>
         </div>
@@ -103,28 +103,28 @@
             <el-button
               size="small"
               @click="generateAnalysis('employment')"
-              :loading="isLoading"
+              :loading="isStreaming"
             >
               <el-icon><PieChart /></el-icon> 就业分析
             </el-button>
             <el-button
               size="small"
               @click="generateAnalysis('major')"
-              :loading="isLoading"
+              :loading="isStreaming"
             >
               <el-icon><School /></el-icon> 专业分析
             </el-button>
             <el-button
               size="small"
               @click="generateAnalysis('prediction')"
-              :loading="isLoading"
+              :loading="isStreaming"
             >
               <el-icon><TrendCharts /></el-icon> 趋势预测
             </el-button>
             <el-button
               size="small"
               @click="generateAnalysis('report')"
-              :loading="isLoading"
+              :loading="isStreaming"
             >
               <el-icon><Document /></el-icon> 年度报告
             </el-button>
@@ -165,7 +165,9 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
-import { aiChat, getChatHistory, getChatHistoryByYear, generateEmploymentAnalysis, generateMajorAnalysis, generatePredictionAnalysis, generateAnnualReport } from '../api/admin'
+import { getChatHistory, getChatHistoryByYear } from '../api/admin'
+import { streamAIChat } from '../utils/aiStreamChat'
+import { formatAIContent } from '../utils/formatAIContent'
 
 // 注册所有图标
 const {
@@ -195,18 +197,17 @@ const messages = ref([
 
 const inputMessage = ref('')
 const isLoading = ref(false)
+const isStreaming = ref(false)
 const currentYear = ref(new Date().getFullYear())
 const userId = ref('admin_' + new Date().getTime())
 const availableYears = ref([2022, 2023, 2024, 2025, 2026])
+let abortController = null
 
 // 计算属性
 const chatCount = computed(() => messages.value.length)
 
-// 格式化消息内容，支持换行和特殊字符
-const formatMessage = (content) => {
-  if (!content) return ''
-  return content.replace(/\n/g, '<br>')
-}
+// 格式化消息：支持换行、标题、列表、加粗
+const formatMessage = (content) => formatAIContent(content)
 
 const quickQuestions = [
   `${currentYear.value}届就业率是多少？`,
@@ -238,50 +239,70 @@ const loadChatHistory = async () => {
   }
 }
 
+const sendStreamMessage = async (content) => {
+  if (!content.trim() || isStreaming.value) return
+
+  if (abortController) {
+    abortController.abort()
+  }
+  abortController = new AbortController()
+  isStreaming.value = true
+  isLoading.value = true
+
+  messages.value.push({
+    id: Date.now(),
+    role: 'user',
+    content,
+    time: new Date().toLocaleTimeString()
+  })
+
+  const aiMessageId = Date.now() + 1
+  messages.value.push({
+    id: aiMessageId,
+    role: 'ai',
+    content: '',
+    time: new Date().toLocaleTimeString()
+  })
+
+  try {
+    await streamAIChat({
+      content,
+      userId: userId.value,
+      year: currentYear.value,
+      messageType: 'general',
+      userRole: 'admin',
+      signal: abortController.signal,
+      onChunk: (chunk) => {
+        isLoading.value = false
+        const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
+        if (aiMsgIndex !== -1) {
+          messages.value[aiMsgIndex].content += chunk
+        }
+      }
+    })
+  } catch (error) {
+    if (error.name !== 'AbortError') {
+      console.error('AI聊天失败:', error)
+      ElMessage.error('AI聊天失败，请稍后重试')
+      const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
+      if (aiMsgIndex !== -1 && !messages.value[aiMsgIndex].content) {
+        messages.value.splice(aiMsgIndex, 1)
+        messages.value.pop()
+      }
+    }
+  } finally {
+    isLoading.value = false
+    isStreaming.value = false
+    abortController = null
+  }
+}
+
 const handleSend = async () => {
   if (!inputMessage.value.trim()) return
 
   const tempMessage = inputMessage.value
   inputMessage.value = ''
-  isLoading.value = true
-
-  // 添加用户消息
-  messages.value.push({
-    id: Date.now(),
-    role: 'user',
-    content: tempMessage,
-    time: new Date().toLocaleTimeString()
-  })
-
-  try {
-    const response = await aiChat({
-      userId: userId.value,
-      content: tempMessage,
-      year: currentYear.value,
-      messageType: 'general'
-    })
-
-    if (response.code === 200) {
-      // 添加AI回复
-      messages.value.push({
-        id: Date.now() + 1,
-        role: 'ai',
-        content: response.data,
-        time: new Date().toLocaleTimeString()
-      })
-    } else {
-      ElMessage.error(response.message || 'AI回复失败')
-      // 移除用户发送的消息
-      messages.value.pop()
-    }
-  } catch (error) {
-    console.error('AI聊天失败:', error)
-    ElMessage.error('AI聊天失败，请稍后重试')
-    // 移除用户发送的消息
-    messages.value.pop()
-  } finally {
-    isLoading.value = false
-  }
+  await sendStreamMessage(tempMessage)
 }
 
 const handleQuickQuestion = (question) => {
@@ -291,7 +312,7 @@ const handleQuickQuestion = (question) => {
   handleSend()
 }
 
-// 生成特定类型的分析
+// 生成特定类型的分析（流式）
 const generateAnalysis = async (type) => {
   const analysisNames = {
     employment: '就业分析',
@@ -301,59 +322,7 @@ const generateAnalysis = async (type) => {
   }
 
   const question = `生成${currentYear.value}年${analysisNames[type]}`
-
-  // 添加用户请求
-  messages.value.push({
-    id: Date.now(),
-    role: 'user',
-    content: question,
-    time: new Date().toLocaleTimeString()
-  })
-
-  isLoading.value = true
-
-  try {
-    let response
-    const data = {
-      userId: userId.value,
-      year: currentYear.value
-    }
-
-    switch (type) {
-      case 'employment':
-        response = await generateEmploymentAnalysis(data)
-        break
-      case 'major':
-        response = await generateMajorAnalysis(data)
-        break
-      case 'prediction':
-        response = await generatePredictionAnalysis(data)
-        break
-      case 'report':
-        response = await generateAnnualReport(data)
-        break
-    }
-
-    if (response.code === 200) {
-      messages.value.push({
-        id: Date.now() + 1,
-        role: 'ai',
-        content: response.data.summary || response.data,
-        time: new Date().toLocaleTimeString()
-      })
-    } else {
-      ElMessage.error(response.message || '分析失败')
-      // 移除用户发送的请求
-      messages.value.pop()
-    }
-  } catch (error) {
-    console.error('生成分析失败:', error)
-    ElMessage.error('生成分析失败，请稍后重试')
-    // 移除用户发送的请求
-    messages.value.pop()
-  } finally {
-    isLoading.value = false
-  }
+  await sendStreamMessage(question)
 }
 
 // 切换年份
@@ -546,8 +515,42 @@ onMounted(() => {
   border-radius: 12px;
   font-size: 14px;
   line-height: 1.6;
-  white-space: pre-wrap;
   word-break: break-word;
+}
+
+.message-text :deep(p) {
+  margin: 0 0 8px;
+}
+
+.message-text :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.message-text :deep(h3),
+.message-text :deep(h4) {
+  margin: 10px 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.message-text :deep(h3:first-child),
+.message-text :deep(h4:first-child) {
+  margin-top: 0;
+}
+
+.message-text :deep(ul),
+.message-text :deep(ol) {
+  margin: 6px 0 10px;
+  padding-left: 20px;
+}
+
+.message-text :deep(li) {
+  margin: 4px 0;
+}
+
+.message-text :deep(strong) {
+  font-weight: 600;
 }
 
 .ai-message .message-text {
