@@ -51,7 +51,7 @@
               </svg>
             </div>
             <div class="message-content">
-              <span class="message-text" v-html="formatMessageContent(msg.content)"></span>
+              <div class="message-text" v-html="formatMessageContent(msg.content)"></div>
               <span class="message-time">{{ msg.time || formatTime() }}</span>
             </div>
           </div>
@@ -106,6 +106,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useAuth } from '../stores/auth'
+import { streamAIChat } from '../utils/aiStreamChat'
+import { formatAIContent } from '../utils/formatAIContent'
 
 const isOpen = ref(false)
 const isLoading = ref(false)
@@ -141,11 +143,23 @@ const startPosX = ref(0)
 const startPosY = ref(0)
 const hasMoved = ref(false)
 
-const panelWidth = ref(420)
-const panelHeight = ref(580)
+const BTN_SIZE = 56
+const PANEL_GAP = 12
+const VIEW_PADDING = 10
+const MIN_PANEL_WIDTH = 300
+const MIN_PANEL_HEIGHT = 360
+const DEFAULT_PANEL_WIDTH = 420
+const DEFAULT_PANEL_HEIGHT = 580
+
+const panelWidth = ref(DEFAULT_PANEL_WIDTH)
+const panelHeight = ref(DEFAULT_PANEL_HEIGHT)
 const isResizing = ref(false)
 const startWidth = ref(0)
 const startHeight = ref(0)
+const viewport = ref({
+  width: window.innerWidth,
+  height: window.innerHeight
+})
 
 const quickActions = ref([
   { text: '就业分析' },
@@ -154,17 +168,77 @@ const quickActions = ref([
   { text: '年度报告' }
 ])
 
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
+
+const getMaxPanelSize = () => ({
+  width: Math.max(MIN_PANEL_WIDTH, viewport.value.width - VIEW_PADDING * 2),
+  height: Math.max(MIN_PANEL_HEIGHT, viewport.value.height - VIEW_PADDING * 2 - BTN_SIZE - PANEL_GAP)
+})
+
+const fitPanelToViewport = () => {
+  const max = getMaxPanelSize()
+  panelWidth.value = clamp(panelWidth.value, MIN_PANEL_WIDTH, max.width)
+  panelHeight.value = clamp(panelHeight.value, MIN_PANEL_HEIGHT, max.height)
+}
+
+const clampButtonPosition = () => {
+  const maxX = viewport.value.width - BTN_SIZE - VIEW_PADDING
+  const maxY = viewport.value.height - BTN_SIZE - VIEW_PADDING
+  position.value = {
+    x: clamp(position.value.x, VIEW_PADDING, Math.max(VIEW_PADDING, maxX)),
+    y: clamp(position.value.y, VIEW_PADDING, Math.max(VIEW_PADDING, maxY))
+  }
+}
+
+/** 计算聊天面板在视口内的位置（优先上方；空间不够则选更大一侧并缩小，绝不纵向铺满） */
+const getPanelPosition = () => {
+  const vw = viewport.value.width
+  const vh = viewport.value.height
+  const max = getMaxPanelSize()
+  // 期望高度：用户设定或默认值，且不超过视口上限
+  const preferredH = clamp(panelHeight.value, MIN_PANEL_HEIGHT, max.height)
+  const w = clamp(panelWidth.value, MIN_PANEL_WIDTH, max.width)
+  const btnX = position.value.x
+  const btnY = position.value.y
+
+  // 水平：尽量右对齐按钮，超出则贴边
+  let left = btnX + BTN_SIZE - w
+  left = clamp(left, VIEW_PADDING, Math.max(VIEW_PADDING, vw - w - VIEW_PADDING))
+
+  const spaceAbove = Math.max(0, btnY - PANEL_GAP - VIEW_PADDING)
+  const spaceBelow = Math.max(0, vh - (btnY + BTN_SIZE + PANEL_GAP) - VIEW_PADDING)
+
+  // 优先上方；上方不够且下方更大时改下方
+  const placeAbove = spaceAbove >= preferredH || spaceAbove >= spaceBelow
+  const available = placeAbove ? spaceAbove : spaceBelow
+  // 核心：高度 = min(期望高度, 可用空间)，只缩小不撑满
+  const h = Math.max(200, Math.min(preferredH, available || preferredH))
+  const top = placeAbove
+    ? btnY - h - PANEL_GAP
+    : btnY + BTN_SIZE + PANEL_GAP
+
+  return {
+    left,
+    top: clamp(top, VIEW_PADDING, Math.max(VIEW_PADDING, vh - h - VIEW_PADDING)),
+    width: w,
+    height: h
+  }
+}
+
 const containerStyle = computed(() => ({
   left: `${position.value.x}px`,
   top: `${position.value.y}px`
 }))
 
-const panelStyle = computed(() => ({
-  width: `${panelWidth.value}px`,
-  height: `${panelHeight.value}px`,
-  left: `${position.value.x - panelWidth.value + 56}px`,
-  bottom: `${window.innerHeight - position.value.y + 12}px`
-}))
+const panelStyle = computed(() => {
+  const { left, top, width, height } = getPanelPosition()
+  return {
+    width: `${width}px`,
+    height: `${height}px`,
+    left: `${left}px`,
+    top: `${top}px`
+  }
+})
 
 const messages = ref([
   {
@@ -179,10 +253,7 @@ const formatTime = () => {
   return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
-const formatMessageContent = (content) => {
-  if (!content) return ''
-  return content.replace(/\n/g, '<br/>')
-}
+const formatMessageContent = (content) => formatAIContent(content)
 
 const scrollToBottom = () => {
   nextTick(() => {
@@ -199,6 +270,9 @@ const toggleChat = () => {
   }
   isOpen.value = !isOpen.value
   if (isOpen.value) {
+    viewport.value = { width: window.innerWidth, height: window.innerHeight }
+    clampButtonPosition()
+    fitPanelToViewport()
     unreadCount.value = 0
     loadChatHistory()
     scrollToBottom()
@@ -235,16 +309,13 @@ const onDrag = (e) => {
     hasMoved.value = true
   }
   
-  let newX = startPosX.value + deltaX
-  let newY = startPosY.value + deltaY
-  
-  const maxX = window.innerWidth - 56
-  const maxY = window.innerHeight - 56
-  
-  newX = Math.max(10, Math.min(maxX, newX))
-  newY = Math.max(10, Math.min(maxY, newY))
-  
-  position.value = { x: newX, y: newY }
+  const maxX = viewport.value.width - BTN_SIZE - VIEW_PADDING
+  const maxY = viewport.value.height - BTN_SIZE - VIEW_PADDING
+
+  position.value = {
+    x: clamp(startPosX.value + deltaX, VIEW_PADDING, Math.max(VIEW_PADDING, maxX)),
+    y: clamp(startPosY.value + deltaY, VIEW_PADDING, Math.max(VIEW_PADDING, maxY))
+  }
 }
 
 const stopDrag = () => {
@@ -262,26 +333,23 @@ const stopDrag = () => {
 
 const snapToEdge = () => {
   const snapThreshold = 60
-  const btnWidth = 56
-  
   let newX = position.value.x
   let newY = position.value.y
-  
+
   if (newX < snapThreshold) {
-    newX = 10
-  } else if (window.innerWidth - newX - btnWidth < snapThreshold) {
-    newX = window.innerWidth - btnWidth - 10
+    newX = VIEW_PADDING
+  } else if (viewport.value.width - newX - BTN_SIZE < snapThreshold) {
+    newX = viewport.value.width - BTN_SIZE - VIEW_PADDING
   }
-  
+
   if (newY < snapThreshold) {
-    newY = 10
-  } else if (window.innerHeight - newY - btnWidth < snapThreshold) {
-    newY = window.innerHeight - btnWidth - 10
+    newY = VIEW_PADDING
+  } else if (viewport.value.height - newY - BTN_SIZE < snapThreshold) {
+    newY = viewport.value.height - BTN_SIZE - VIEW_PADDING
   }
-  
-  if (newX !== position.value.x || newY !== position.value.y) {
-    position.value = { x: newX, y: newY }
-  }
+
+  position.value = { x: newX, y: newY }
+  clampButtonPosition()
 }
 
 const onPanelMouseMove = (e) => {
@@ -355,22 +423,19 @@ const startResize = (e) => {
 
 const onResize = (e) => {
   if (!isResizing.value) return
-  
+
   const event = e.touches ? e.touches[0] : e
   const deltaX = event.clientX - startX.value
   const deltaY = event.clientY - startY.value
-  
-  const panelLeft = position.value.x - panelWidth.value + 56
-  const maxWidth = window.innerWidth - panelLeft - 20
-  const maxHeight = position.value.y - 90
-  
+  const max = getMaxPanelSize()
+
   if (resizeEdge === 'bottom-right' || !resizeEdge) {
-    panelWidth.value = Math.max(320, Math.min(maxWidth, startWidth.value + deltaX))
-    panelHeight.value = Math.max(400, Math.min(maxHeight, startHeight.value + deltaY))
+    panelWidth.value = clamp(startWidth.value + deltaX, MIN_PANEL_WIDTH, max.width)
+    panelHeight.value = clamp(startHeight.value + deltaY, MIN_PANEL_HEIGHT, max.height)
   } else if (resizeEdge === 'right') {
-    panelWidth.value = Math.max(320, Math.min(maxWidth, startWidth.value + deltaX))
+    panelWidth.value = clamp(startWidth.value + deltaX, MIN_PANEL_WIDTH, max.width)
   } else if (resizeEdge === 'bottom') {
-    panelHeight.value = Math.max(400, Math.min(maxHeight, startHeight.value + deltaY))
+    panelHeight.value = clamp(startHeight.value + deltaY, MIN_PANEL_HEIGHT, max.height)
   }
 }
 
@@ -398,17 +463,16 @@ const loadPosition = () => {
   if (saved) {
     try {
       const savedPos = JSON.parse(saved)
-      const maxX = window.innerWidth - 56
-      const maxY = window.innerHeight - 56
-      
       position.value = {
-        x: Math.max(10, Math.min(maxX, savedPos.x)),
-        y: Math.max(10, Math.min(maxY, savedPos.y))
+        x: savedPos.x ?? position.value.x,
+        y: savedPos.y ?? position.value.y
       }
     } catch (e) {
       console.error('加载位置失败:', e)
     }
   }
+  clampButtonPosition()
+  fitPanelToViewport()
 }
 
 const loadChatHistory = async () => {
@@ -457,59 +521,31 @@ const sendMessage = async () => {
   })
   
   const userContent = messages.value[messages.value.length - 2].content
-    const yearMatch = userContent.match(/(\d{4})年/)
-    const year = yearMatch ? parseInt(yearMatch[1]) : new Date().getFullYear()
-    
-    const currentUserId = authState.user?.studentId || authState.user?.username || (authState.isLoggedIn ? userId.value : null)
-    const currentRole = authState.isLoggedIn ? (authState.role || 'student') : 'guest'
-    
-    try {
-    const response = await fetch('/api/ai/chat/stream', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        userId: currentUserId,
-        content: userContent,
-        year: year,
-        messageType: 'general',
-        userRole: currentRole
-      }),
-      signal: abortController.signal
-    })
-    
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder('utf-8')
-    
-    while (isMounted) {
-      const { done, value } = await reader.read()
-      if (done) break
-      
-      const chunk = decoder.decode(value, { stream: true })
-      const lines = chunk.split('\n')
-      
-      for (const line of lines) {
-        const trimmedLine = line.trim()
-        if (trimmedLine && !trimmedLine.includes('[DONE]')) {
-          let content = trimmedLine
-          if (content.startsWith('data:')) {
-            content = content.substring(5).trim()
-          }
-          if (content) {
-            const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
-            if (aiMsgIndex !== -1) {
-              messages.value[aiMsgIndex].content += content
-              scrollToBottom()
-            }
-          }
+  const yearMatch = userContent.match(/(\d{4})年/)
+  const year = yearMatch ? parseInt(yearMatch[1]) : new Date().getFullYear()
+
+  const currentUserId = authState.user?.studentId || authState.user?.username || (authState.isLoggedIn ? userId.value : null)
+  const currentRole = authState.isLoggedIn ? (authState.role || 'student') : 'guest'
+
+  try {
+    await streamAIChat({
+      content: userContent,
+      userId: currentUserId,
+      year,
+      messageType: 'general',
+      userRole: currentRole,
+      signal: abortController.signal,
+      onChunk: (chunk) => {
+        const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
+        if (aiMsgIndex !== -1) {
+          messages.value[aiMsgIndex].content += chunk
+          scrollToBottom()
         }
       }
-    }
-    
+    })
+
     isLoading.value = false
     abortController = null
-    
   } catch (error) {
     if (error.name !== 'AbortError') {
       console.error('AI聊天失败:', error)
@@ -537,17 +573,14 @@ const stopGeneration = () => {
 }
 
 const handleResize = () => {
-  const maxX = window.innerWidth - 56
-  const maxY = window.innerHeight - 56
-  
-  position.value = {
-    x: Math.min(maxX, position.value.x),
-    y: Math.min(maxY, position.value.y)
-  }
+  viewport.value = { width: window.innerWidth, height: window.innerHeight }
+  clampButtonPosition()
+  fitPanelToViewport()
 }
 
 onMounted(() => {
   isMounted = true
+  viewport.value = { width: window.innerWidth, height: window.innerHeight }
   loadPosition()
   loadChatHistory()
   window.addEventListener('resize', handleResize)
@@ -702,9 +735,10 @@ onUnmounted(() => {
   backdrop-filter: blur(24px);
   border-radius: 24px;
   box-shadow: 0 25px 80px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.05);
-  margin-bottom: 12px;
   overflow: hidden;
   position: fixed;
+  max-width: calc(100vw - 20px);
+  max-height: calc(100vh - 20px);
   animation: panel-appear 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -870,12 +904,47 @@ onUnmounted(() => {
 }
 
 .message-text {
-  display: inline-block;
+  display: block;
   padding: 14px 18px;
   border-radius: 20px;
   font-size: 14px;
   line-height: 1.6;
   word-break: break-word;
+}
+
+.message-text :deep(p) {
+  margin: 0 0 8px;
+}
+
+.message-text :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.message-text :deep(h3),
+.message-text :deep(h4) {
+  margin: 10px 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.message-text :deep(h3:first-child),
+.message-text :deep(h4:first-child) {
+  margin-top: 0;
+}
+
+.message-text :deep(ul),
+.message-text :deep(ol) {
+  margin: 6px 0 10px;
+  padding-left: 20px;
+}
+
+.message-text :deep(li) {
+  margin: 4px 0;
+}
+
+.message-text :deep(strong) {
+  font-weight: 600;
 }
 
 .ai-message .message-text {
