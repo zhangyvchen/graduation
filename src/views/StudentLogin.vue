@@ -39,12 +39,13 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '../stores/auth'
 import { studentLogin } from '../api/student'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuth()
 
 const loginForm = ref({
@@ -90,8 +91,9 @@ const handleLogin = async () => {
       auth.login(userInfo)
 
       ElMessage.success('登录成功')
-      // 跳转到学生个人中心
-      router.push('/student/profile')
+      // 跳转到学生个人中心，如果有redirect参数则跳转到指定页面
+      const redirect = route.query.redirect || '/student/profile'
+      router.push(redirect)
     } else {
       ElMessage.error(res.message || '登录失败')
     }

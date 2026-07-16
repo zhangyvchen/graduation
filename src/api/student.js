@@ -129,3 +129,9 @@ export const deleteStudent = (id) => request({
   url: `/admin/student/${id}`,
   method: 'delete'
 })
+
+// 管理员检查学生是否存在
+export const checkStudentExists = (studentId) => request({
+  url: `/admin/student/check/${studentId}`,
+  method: 'get'
+})
