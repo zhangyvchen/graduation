@@ -94,3 +94,35 @@ export function generateAnnualReport(data) {
     data
   })
 }
+
+// ============= 留言审核 =============
+
+export function getMessagePage(params) {
+  return request({
+    url: '/admin/message/page',
+    method: 'get',
+    params
+  })
+}
+
+export function getPendingMessageCount() {
+  return request({
+    url: '/admin/message/pending-count',
+    method: 'get'
+  })
+}
+
+export function reviewMessage(data) {
+  return request({
+    url: '/admin/message/review',
+    method: 'post',
+    data
+  })
+}
+
+export function deleteMessage(id) {
+  return request({
+    url: `/admin/message/${id}`,
+    method: 'delete'
+  })
+}

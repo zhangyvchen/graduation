@@ -58,6 +58,19 @@
           扫码核销
         </el-menu-item>
 
+        <el-menu-item index="/admin/message">
+          <template #icon>
+            <span class="menu-icon">💬</span>
+          </template>
+          留言审核
+          <el-badge
+              v-if="pendingMessageCount > 0"
+              :value="pendingMessageCount"
+              :max="99"
+              class="menu-badge"
+          />
+        </el-menu-item>
+
       </el-menu>
       <div class="sidebar-footer">
         <div class="user-info" v-if="auth.state.user">
@@ -94,17 +107,35 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuth } from '../stores/auth'
-import { changePassword } from '../api/admin'
+import { changePassword, getPendingMessageCount } from '../api/admin'
 
 
 const router = useRouter()
 const auth = useAuth()
 
 const activeMenu = computed(() => router.currentRoute.value.path)
+
+// 留言待审核数（轮询，每 30s 拉一次）
+const pendingMessageCount = ref(0)
+let pollTimer = null
+const refreshPendingCount = async () => {
+  if (!auth.state.isLoggedIn) return
+  try {
+    const res = await getPendingMessageCount()
+    if (res.code === 200) pendingMessageCount.value = res.data || 0
+  } catch (e) { /* 忽略 */ }
+}
+onMounted(() => {
+  refreshPendingCount()
+  pollTimer = setInterval(refreshPendingCount, 30000)
+})
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer)
+})
 
 const showChangePasswordDialog = ref(false)
 const isChanging = ref(false)
@@ -267,6 +298,12 @@ transition: transform 0.3s ease;
   margin-right: 10px;
     display: inline-block;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.menu-badge {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .sidebar-footer {
