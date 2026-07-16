@@ -30,7 +30,13 @@
             </div>
           </div>
           <div class="header-actions">
-            <button class="minimize-btn" @click.stop="toggleChat">
+            <button class="header-icon-btn" title="清除记忆" @click.stop="clearMemory">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </button>
+            <button class="header-icon-btn" title="最小化" @click.stop="toggleChat">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="5" y1="12" x2="19" y2="12"></line>
               </svg>
@@ -62,11 +68,7 @@
                 <span class="dot"></span>
                 <span class="dot"></span>
               </div>
-              <button class="stop-btn" @click="stopGeneration">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="6" y="4" width="12" height="16"></rect>
-                </svg>
-              </button>
+              <span class="loading-text">正在生成...</span>
             </div>
           </div>
         </div>
@@ -78,11 +80,28 @@
               placeholder="输入问题..." 
               @keyup.enter="sendMessage"
               class="input-field"
+              :disabled="isStreaming"
             />
-            <button class="send-btn" @click="sendMessage" :disabled="isLoading">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ 'sending': isLoading }">
+            <button
+              v-if="!isStreaming"
+              class="send-btn"
+              @click="sendMessage"
+              :disabled="!inputText.trim()"
+              title="发送"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
                 <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+            <button
+              v-else
+              class="send-btn stop-send-btn"
+              @click="stopGeneration"
+              title="停止生成"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="6" width="12" height="12" rx="2"></rect>
               </svg>
             </button>
           </div>
@@ -105,28 +124,44 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { useAuth } from '../stores/auth'
-import { streamAIChat } from '../utils/aiStreamChat'
-import { formatAIContent } from '../utils/formatAIContent'
+import { useAiChat } from '../composables/useAiChat'
 
 const isOpen = ref(false)
-const isLoading = ref(false)
 const isDragging = ref(false)
 const unreadCount = ref(0)
-const inputText = ref('')
-const userId = ref('user_' + new Date().getTime())
 const messagesContainer = ref(null)
-
-const { state: authState, isAdmin } = useAuth()
 const panelRef = ref(null)
-let isMounted = false
 let resizeEdge = null
-let abortController = null
 
 if (window.__aiFloatButtonMounted__) {
   throw new Error('AIFloatButton should only be mounted once')
 }
 window.__aiFloatButtonMounted__ = true
+
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    }
+  })
+}
+
+const {
+  messages,
+  inputText,
+  isLoading,
+  isStreaming,
+  formatMessage: formatMessageContent,
+  formatTime,
+  setAlive,
+  initIdentityTracking,
+  loadChatHistory,
+  sendMessage: sendChatMessage,
+  stopGeneration,
+  clearMemory: clearChatMemory
+} = useAiChat({
+  onAfterChunk: () => scrollToBottom()
+})
 
 const aiAvatarUrl = ref('/static/AI_1.png')
 const aiAvatarHeaderUrl = ref('/static/AI_2.png')
@@ -170,15 +205,23 @@ const quickActions = ref([
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 
-const getMaxPanelSize = () => ({
-  width: Math.max(MIN_PANEL_WIDTH, viewport.value.width - VIEW_PADDING * 2),
-  height: Math.max(MIN_PANEL_HEIGHT, viewport.value.height - VIEW_PADDING * 2 - BTN_SIZE - PANEL_GAP)
-})
+const getMaxPanelSize = () => {
+  const viewportCap = Math.floor(viewport.value.height * 0.65)
+  const sideCap = viewport.value.height - VIEW_PADDING * 2 - BTN_SIZE - PANEL_GAP
+  return {
+    width: Math.max(MIN_PANEL_WIDTH, viewport.value.width - VIEW_PADDING * 2),
+    height: Math.max(MIN_PANEL_HEIGHT, Math.min(DEFAULT_PANEL_HEIGHT, viewportCap, sideCap))
+  }
+}
 
 const fitPanelToViewport = () => {
   const max = getMaxPanelSize()
   panelWidth.value = clamp(panelWidth.value, MIN_PANEL_WIDTH, max.width)
-  panelHeight.value = clamp(panelHeight.value, MIN_PANEL_HEIGHT, max.height)
+  panelHeight.value = clamp(
+    Math.min(panelHeight.value, DEFAULT_PANEL_HEIGHT),
+    MIN_PANEL_HEIGHT,
+    max.height
+  )
 }
 
 const clampButtonPosition = () => {
@@ -190,28 +233,23 @@ const clampButtonPosition = () => {
   }
 }
 
-/** 计算聊天面板在视口内的位置（优先上方；空间不够则选更大一侧并缩小，绝不纵向铺满） */
 const getPanelPosition = () => {
   const vw = viewport.value.width
   const vh = viewport.value.height
   const max = getMaxPanelSize()
-  // 期望高度：用户设定或默认值，且不超过视口上限
   const preferredH = clamp(panelHeight.value, MIN_PANEL_HEIGHT, max.height)
   const w = clamp(panelWidth.value, MIN_PANEL_WIDTH, max.width)
   const btnX = position.value.x
   const btnY = position.value.y
 
-  // 水平：尽量右对齐按钮，超出则贴边
   let left = btnX + BTN_SIZE - w
   left = clamp(left, VIEW_PADDING, Math.max(VIEW_PADDING, vw - w - VIEW_PADDING))
 
   const spaceAbove = Math.max(0, btnY - PANEL_GAP - VIEW_PADDING)
   const spaceBelow = Math.max(0, vh - (btnY + BTN_SIZE + PANEL_GAP) - VIEW_PADDING)
 
-  // 优先上方；上方不够且下方更大时改下方
   const placeAbove = spaceAbove >= preferredH || spaceAbove >= spaceBelow
   const available = placeAbove ? spaceAbove : spaceBelow
-  // 核心：高度 = min(期望高度, 可用空间)，只缩小不撑满
   const h = Math.max(200, Math.min(preferredH, available || preferredH))
   const top = placeAbove
     ? btnY - h - PANEL_GAP
@@ -240,29 +278,6 @@ const panelStyle = computed(() => {
   }
 })
 
-const messages = ref([
-  {
-    id: 1,
-    role: 'ai',
-    content: '您好！我是毕业数据报告系统的 AI 助手，有什么可以帮您的？',
-    time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-  }
-])
-
-const formatTime = () => {
-  return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-}
-
-const formatMessageContent = (content) => formatAIContent(content)
-
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-    }
-  })
-}
-
 const toggleChat = () => {
   if (isDragging.value || hasMoved.value) {
     hasMoved.value = false
@@ -271,6 +286,9 @@ const toggleChat = () => {
   isOpen.value = !isOpen.value
   if (isOpen.value) {
     viewport.value = { width: window.innerWidth, height: window.innerHeight }
+    if (panelHeight.value > DEFAULT_PANEL_HEIGHT) {
+      panelHeight.value = DEFAULT_PANEL_HEIGHT
+    }
     clampButtonPosition()
     fitPanelToViewport()
     unreadCount.value = 0
@@ -475,101 +493,28 @@ const loadPosition = () => {
   fitPanelToViewport()
 }
 
-const loadChatHistory = async () => {
-  try {
-    const response = await fetch(`/api/ai/chat-history/${userId.value}`)
-    const data = await response.json()
-    if (isMounted && data.code === 200 && data.data && data.data.length > 0) {
-      messages.value = data.data.map(msg => ({
-        id: msg.id,
-        role: msg.role,
-        content: msg.role === 'ai' ? msg.response || msg.content : msg.content,
-        time: formatTime()
-      }))
-    }
-  } catch (error) {
-    console.error('加载聊天历史失败:', error)
-  }
-}
-
 const sendMessage = async () => {
-  if (!inputText.value.trim() || isLoading.value) return
-  
-  if (abortController) {
-    abortController.abort()
-  }
-  
-  abortController = new AbortController()
-  
-  messages.value.push({
-    id: Date.now(),
-    role: 'user',
-    content: inputText.value,
-    time: formatTime()
-  })
-  
+  if (!inputText.value.trim() || isStreaming.value) return
+  const text = inputText.value
   inputText.value = ''
-  isLoading.value = true
   scrollToBottom()
-  
-  const aiMessageId = Date.now() + 1
-  messages.value.push({
-    id: aiMessageId,
-    role: 'ai',
-    content: '',
-    time: formatTime()
-  })
-  
-  const userContent = messages.value[messages.value.length - 2].content
-  const yearMatch = userContent.match(/(\d{4})年/)
-  const year = yearMatch ? parseInt(yearMatch[1]) : new Date().getFullYear()
-
-  const currentUserId = authState.user?.studentId || authState.user?.username || (authState.isLoggedIn ? userId.value : null)
-  const currentRole = authState.isLoggedIn ? (authState.role || 'student') : 'guest'
-
-  try {
-    await streamAIChat({
-      content: userContent,
-      userId: currentUserId,
-      year,
-      messageType: 'general',
-      userRole: currentRole,
-      signal: abortController.signal,
-      onChunk: (chunk) => {
-        const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
-        if (aiMsgIndex !== -1) {
-          messages.value[aiMsgIndex].content += chunk
-          scrollToBottom()
-        }
-      }
-    })
-
-    isLoading.value = false
-    abortController = null
-  } catch (error) {
-    if (error.name !== 'AbortError') {
-      console.error('AI聊天失败:', error)
-      const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
-      if (aiMsgIndex !== -1 && !messages.value[aiMsgIndex].content) {
-        messages.value[aiMsgIndex].content = '网络连接异常，请稍后重试。'
-      }
-    }
-    isLoading.value = false
-    abortController = null
-  }
+  await sendChatMessage(text)
+  scrollToBottom()
 }
 
 const sendQuickAction = (text) => {
+  if (isStreaming.value) return
   inputText.value = text
   sendMessage()
 }
 
-const stopGeneration = () => {
-  if (abortController) {
-    abortController.abort()
-    abortController = null
+const clearMemory = async () => {
+  try {
+    await clearChatMemory()
+    scrollToBottom()
+  } catch (error) {
+    console.error('清除记忆失败:', error)
   }
-  isLoading.value = false
 }
 
 const handleResize = () => {
@@ -579,7 +524,8 @@ const handleResize = () => {
 }
 
 onMounted(() => {
-  isMounted = true
+  setAlive(true)
+  initIdentityTracking()
   viewport.value = { width: window.innerWidth, height: window.innerHeight }
   loadPosition()
   loadChatHistory()
@@ -587,7 +533,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  isMounted = false
+  setAlive(false)
+  stopGeneration()
   window.removeEventListener('resize', handleResize)
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
@@ -819,7 +766,7 @@ onUnmounted(() => {
   gap: 8px;
 }
 
-.minimize-btn {
+.header-icon-btn {
   background: rgba(255, 255, 255, 0.15);
   border: none;
   color: #fff;
@@ -833,7 +780,7 @@ onUnmounted(() => {
   transition: all 0.2s ease;
 }
 
-.minimize-btn:hover {
+.header-icon-btn:hover {
   background: rgba(255, 255, 255, 0.25);
   transform: scale(1.05);
 }
@@ -870,6 +817,8 @@ onUnmounted(() => {
   display: flex;
   gap: 12px;
   align-items: flex-start;
+  flex: 0 0 auto;
+  width: 100%;
 }
 
 .message-avatar {
@@ -896,15 +845,26 @@ onUnmounted(() => {
 }
 
 .message-content {
-  flex: 1;
+  flex: 0 1 auto;
   max-width: 78%;
+  width: fit-content;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 4px;
+  align-self: flex-start;
+}
+
+.user-message .message-content {
+  align-self: flex-end;
+  align-items: flex-end;
 }
 
 .message-text {
   display: block;
+  width: fit-content;
+  max-width: 100%;
+  height: fit-content;
   padding: 14px 18px;
   border-radius: 20px;
   font-size: 14px;
@@ -1018,24 +978,9 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-.stop-btn {
-  background: rgba(102, 126, 234, 0.15);
-  border: none;
-  color: #667eea;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-.stop-btn:hover {
-  background: rgba(102, 126, 234, 0.3);
-  transform: scale(1.1);
+.loading-text {
+  font-size: 13px;
+  color: #6b7280;
 }
 
 .chat-input {
@@ -1099,8 +1044,12 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 
-.send-btn .sending {
-  animation: spin 1s linear infinite;
+.stop-send-btn {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.stop-send-btn:hover {
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
 }
 
 @keyframes spin {

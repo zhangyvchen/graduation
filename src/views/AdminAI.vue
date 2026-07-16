@@ -15,7 +15,7 @@
           <el-icon><Download /></el-icon> 导出记录
         </el-button>
         <el-button size="small" type="danger" @click="clearChatHistory">
-          <el-icon><Delete /></el-icon> 清空记录
+          <el-icon><Delete /></el-icon> 清除记忆
         </el-button>
       </div>
     </header>
@@ -72,8 +72,20 @@
             :disabled="isStreaming"
             clearable
           />
-          <el-button type="primary" @click="handleSend" :loading="isStreaming" :disabled="isStreaming">
+          <el-button
+            v-if="!isStreaming"
+            type="primary"
+            @click="handleSend"
+            :disabled="!inputMessage.trim()"
+          >
             <el-icon><Send /></el-icon> 发送
+          </el-button>
+          <el-button
+            v-else
+            type="danger"
+            @click="stopStreaming"
+          >
+            停止
           </el-button>
         </div>
       </el-card>
@@ -162,14 +174,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
-import { getChatHistory, getChatHistoryByYear } from '../api/admin'
-import { streamAIChat } from '../utils/aiStreamChat'
-import { formatAIContent } from '../utils/formatAIContent'
+import { getChatHistoryByYear } from '../api/admin'
+import { useAiChat } from '../composables/useAiChat'
 
-// 注册所有图标
 const {
   Download,
   Delete,
@@ -186,28 +196,26 @@ const {
   History
 } = ElementPlusIconsVue
 
-const messages = ref([
-  {
-    id: 1,
-    role: 'ai',
-    content: '您好！我是毕业数据报告系统的 AI 助手。我可以帮您分析毕业数据、生成统计报告、预测就业趋势等。请问有什么我可以帮助您的？',
-    time: new Date().toLocaleTimeString()
-  }
-])
-
-const inputMessage = ref('')
-const isLoading = ref(false)
-const isStreaming = ref(false)
-const currentYear = ref(new Date().getFullYear())
-const userId = ref('admin_' + new Date().getTime())
 const availableYears = ref([2022, 2023, 2024, 2025, 2026])
-let abortController = null
 
-// 计算属性
-const chatCount = computed(() => messages.value.length)
-
-// 格式化消息：支持换行、标题、列表、加粗
-const formatMessage = (content) => formatAIContent(content)
+const {
+  messages,
+  inputText: inputMessage,
+  isLoading,
+  isStreaming,
+  currentYear,
+  chatCount,
+  formatMessage,
+  initIdentityTracking,
+  loadChatHistory,
+  sendMessage,
+  stopGeneration: stopStreaming,
+  clearMemory
+} = useAiChat({
+  welcomeMessage:
+    '您好！我是毕业数据报告系统的 AI 助手。我可以帮您分析毕业数据、生成统计报告、预测就业趋势等。请问有什么我可以帮助您的？',
+  onError: () => ElMessage.error('AI聊天失败，请稍后重试')
+})
 
 const quickQuestions = [
   `${currentYear.value}届就业率是多少？`,
@@ -217,102 +225,19 @@ const quickQuestions = [
   '主要就业行业有哪些？'
 ]
 
-// 加载历史聊天记录
-const loadChatHistory = async () => {
-  try {
-    const response = await getChatHistory(userId.value)
-    if (response.code === 200 && response.data && response.data.length > 0) {
-      messages.value = response.data.map(msg => ({
-        ...msg,
-        time: new Date(msg.createTime).toLocaleTimeString()
-      }))
-      // 滚动到底部
-      setTimeout(() => {
-        const chatBody = document.querySelector('.chat-body')
-        if (chatBody) {
-          chatBody.scrollTop = chatBody.scrollHeight
-        }
-      }, 100)
-    }
-  } catch (error) {
-    console.error('加载聊天历史失败:', error)
-  }
-}
-
-const sendStreamMessage = async (content) => {
-  if (!content.trim() || isStreaming.value) return
-
-  if (abortController) {
-    abortController.abort()
-  }
-  abortController = new AbortController()
-  isStreaming.value = true
-  isLoading.value = true
-
-  messages.value.push({
-    id: Date.now(),
-    role: 'user',
-    content,
-    time: new Date().toLocaleTimeString()
-  })
-
-  const aiMessageId = Date.now() + 1
-  messages.value.push({
-    id: aiMessageId,
-    role: 'ai',
-    content: '',
-    time: new Date().toLocaleTimeString()
-  })
-
-  try {
-    await streamAIChat({
-      content,
-      userId: userId.value,
-      year: currentYear.value,
-      messageType: 'general',
-      userRole: 'admin',
-      signal: abortController.signal,
-      onChunk: (chunk) => {
-        isLoading.value = false
-        const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
-        if (aiMsgIndex !== -1) {
-          messages.value[aiMsgIndex].content += chunk
-        }
-      }
-    })
-  } catch (error) {
-    if (error.name !== 'AbortError') {
-      console.error('AI聊天失败:', error)
-      ElMessage.error('AI聊天失败，请稍后重试')
-      const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
-      if (aiMsgIndex !== -1 && !messages.value[aiMsgIndex].content) {
-        messages.value.splice(aiMsgIndex, 1)
-        messages.value.pop()
-      }
-    }
-  } finally {
-    isLoading.value = false
-    isStreaming.value = false
-    abortController = null
-  }
-}
-
 const handleSend = async () => {
-  if (!inputMessage.value.trim()) return
-
-  const tempMessage = inputMessage.value
+  if (!inputMessage.value.trim() || isStreaming.value) return
+  const text = inputMessage.value
   inputMessage.value = ''
-  await sendStreamMessage(tempMessage)
+  await sendMessage(text, currentYear.value)
 }
 
 const handleQuickQuestion = (question) => {
-  // 更新问题中的年份
   const updatedQuestion = question.replace(/\d{4}/, currentYear.value.toString())
   inputMessage.value = updatedQuestion
   handleSend()
 }
 
-// 生成特定类型的分析（流式）
 const generateAnalysis = async (type) => {
   const analysisNames = {
     employment: '就业分析',
@@ -320,19 +245,20 @@ const generateAnalysis = async (type) => {
     prediction: '趋势预测',
     report: '年度报告'
   }
-
-  const question = `生成${currentYear.value}年${analysisNames[type]}`
-  await sendStreamMessage(question)
+  await sendMessage(`生成${currentYear.value}年${analysisNames[type]}`, currentYear.value)
 }
 
-// 切换年份
 const changeYear = async (year) => {
   try {
     const response = await getChatHistoryByYear(year)
     if (response.code === 200) {
-      messages.value = response.data.map(msg => ({
-        ...msg,
-        time: new Date(msg.createTime).toLocaleTimeString()
+      messages.value = (response.data || []).map(msg => ({
+        id: msg.id,
+        role: msg.role === 'ai' ? 'ai' : 'user',
+        content: msg.role === 'ai' ? (msg.response || msg.content) : msg.content,
+        time: msg.createTime
+          ? new Date(msg.createTime).toLocaleTimeString()
+          : new Date().toLocaleTimeString()
       }))
       currentYear.value = year
       ElMessage.success(`已切换到${year}年的数据`)
@@ -343,7 +269,6 @@ const changeYear = async (year) => {
   }
 }
 
-// 导出聊天记录
 const exportChatHistory = () => {
   const chatContent = messages.value.map(msg => {
     return `[${msg.time}] ${msg.role === 'user' ? '用户' : 'AI'}：${msg.content}`
@@ -360,24 +285,22 @@ const exportChatHistory = () => {
   URL.revokeObjectURL(url)
 }
 
-// 清空聊天记录
 const clearChatHistory = async () => {
   try {
-    await ElMessageBox.confirm('确定要清空聊天记录吗？此操作不可恢复！', '提示', {
+    await ElMessageBox.confirm('确定要清空聊天记录和 AI 记忆吗？此操作不可恢复！', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     })
-
-    // 这里可以调用后端API删除记录，目前只清空前端显示
-    messages.value = []
-    ElMessage.success('聊天记录已清空')
+    await clearMemory({
+      resetText: '记忆已清空。您好！我是毕业数据报告系统的 AI 助手，请问有什么可以帮您的？'
+    })
+    ElMessage.success('聊天记录与 AI 记忆已清空')
   } catch {
-    // 用户取消
+    // 用户取消或请求失败
   }
 }
 
-// 滚动到底部
 const scrollToBottom = () => {
   setTimeout(() => {
     const chatBody = document.querySelector('.chat-body')
@@ -387,12 +310,12 @@ const scrollToBottom = () => {
   }, 100)
 }
 
-// 监听消息变化，自动滚动到底部
 watch(messages, () => {
   scrollToBottom()
 }, { deep: true })
 
 onMounted(() => {
+  initIdentityTracking()
   loadChatHistory()
 })
 </script>
@@ -508,6 +431,14 @@ onMounted(() => {
 
 .message-content {
   max-width: 70%;
+  width: fit-content;
+  height: fit-content;
+  align-self: flex-start;
+}
+
+.user-message .message-content {
+  align-self: flex-end;
+  margin-left: auto;
 }
 
 .message-text {

@@ -178,8 +178,9 @@ server: {
 |------|------|------|
 | 智能问答 | 后端智谱 GLM + `/ai/chat/stream` | 全局 `AIFloatButton`、管理后台 `/admin/ai` |
 | 数据解说 | 前端规则模板 `storyGenerator.js` | 成长轨迹 / 去向地图 / 学习画像页顶部 |
+| 对话逻辑复用 | `composables/useAiChat.js` | 悬浮窗与管理页共用发送/停止/记忆/历史 |
 
-两处 AI 能力互补：前者可对话，后者按页面数据自动播报。
+两处 AI 界面共用 `useAiChat`，UI 各自独立：前者是全局助手，后者是后台工作台。
 
 ## 技术说明
 
