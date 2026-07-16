@@ -162,7 +162,6 @@ import { studentLogin } from '../api/student'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
-const route = useRoute()
 const auth = useAuth()
 
 const loginForm = ref({

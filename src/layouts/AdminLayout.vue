@@ -59,6 +59,26 @@
             </template>
             <template #title>数据导入</template>
           </el-menu-item>
+          <el-menu-item index="/admin/message">
+            <template #icon>
+              <span class="menu-icon">💬</span>
+            </template>
+            <template #title>
+              留言审核
+              <el-badge
+                v-if="pendingMessageCount > 0"
+                :value="pendingMessageCount"
+                :max="99"
+                class="menu-badge"
+              />
+            </template>
+          </el-menu-item>
+          <el-menu-item index="/admin/ai">
+            <template #icon>
+              <span class="menu-icon">🤖</span>
+            </template>
+            <template #title>AI 助手</template>
+          </el-menu-item>
         </el-menu>
         <div class="sidebar-footer">
           <div class="user-info" v-if="auth.state.user">
