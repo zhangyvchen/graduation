@@ -22,7 +22,7 @@
         <router-link to="/learning" class="nav-link" :class="{ active: $route.path === '/learning' }">
           <span>📚</span> 学习画像
         </router-link>
-        <router-link to="/report" class="nav-link" :class="{ active: $route.path === '/report' }">
+        <router-link to="/report" class="nav-link" :class="{ active: isReportNavActive }">
           <span>📄</span> 报告下载
         </router-link>
         <router-link to="/ending" class="nav-link" :class="{ active: $route.path === '/ending' }">
@@ -103,7 +103,13 @@ const router = useRouter()
 const auth = useAuth()
 
 const isOnReportPage = computed(() => {
-  return router.currentRoute.value.path.startsWith('/admin/student-report/')
+  const path = router.currentRoute.value.path
+  return path.startsWith('/admin/student-report/') || path === '/my-report'
+})
+
+const isReportNavActive = computed(() => {
+  const path = router.currentRoute.value.path
+  return path === '/report' || path === '/my-report'
 })
 
 const footerData = ref({
@@ -120,12 +126,7 @@ const handleLogout = () => {
 }
 
 const goToMyReport = () => {
-  const studentId = auth.state.user?.studentId || localStorage.getItem('student_id')
-  if (studentId) {
-    router.push(`/admin/student-report/${studentId}`)
-  } else {
-    ElMessage.error('无法获取学号，请重新登录')
-  }
+  router.push('/my-report')
 }
 
 const handleStudentNavigation = () => {
