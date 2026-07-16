@@ -33,12 +33,13 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuth } from '../stores/auth'
 import { login } from '../api/admin'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuth()
 const loginForm = ref({
   username: '',
@@ -79,12 +80,26 @@ const handleLogin = async () => {
         name: data.name,
         role: data.role || 'admin'
       }
-      auth.login(userData)
-      // 强制再次设置 role，避免后端 role 字段为空导致守卫误判
-      auth.state.role = (userData.role || 'admin').toUpperCase()
+      auth.login({
+        ...userData,
+        role: (userData.role || 'admin').toUpperCase()
+      })
       console.log('[admin login success] role=', auth.state.role, 'token=', data.token?.slice(0, 20))
       ElMessage.success('登录成功')
-      router.push('/admin/dashboard')
+      
+      const redirect = route.query.redirect
+      const defaultRoute = '/admin/dashboard'
+      if (redirect && typeof redirect === 'string') {
+        const allowedPrefixes = ['/admin', '/report']
+        const isValidRedirect = allowedPrefixes.some(prefix => redirect.startsWith(prefix))
+        if (isValidRedirect) {
+          router.push(redirect)
+        } else {
+          router.push(defaultRoute)
+        }
+      } else {
+        router.push(defaultRoute)
+      }
     } else {
       ElMessage.error(response.message || '登录失败')
     }
