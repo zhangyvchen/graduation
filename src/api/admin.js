@@ -41,6 +41,17 @@ export function saveAdmin(data) {
 }
 
 // AI功能相关接口
+export function aiChatStream(data) {
+  return fetch('/api/ai/chat/stream', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  })
+}
+
+/** @deprecated 请使用 aiStreamChat 工具函数 */
 export function aiChat(data) {
   return request({
     url: '/ai/chat',
