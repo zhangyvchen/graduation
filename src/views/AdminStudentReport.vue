@@ -1,12 +1,12 @@
 <template>
   <div class="student-report-page">
     <header class="report-header">
-      <el-button @click="goBack" class="back-btn">
+      <el-button v-if="isAdmin" @click="goBack" class="back-btn">
         <span>←</span>
         <span>返回名单管理</span>
       </el-button>
       <div class="header-info">
-        <h2>{{ studentInfo.name }} 的毕业报告</h2>
+        <h2>{{ studentInfo.name || '我' }} 的毕业报告</h2>
         <p class="subtitle">学号：{{ studentInfo.studentId }} | {{ studentInfo.className }}</p>
       </div>
       <div class="header-actions">
@@ -127,9 +127,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElLoading } from 'element-plus'
+import { ArrowDown } from '@element-plus/icons-vue'
 import { getStudentReportData } from '../api/student'
 import { useAuth } from '../stores/auth'
 import html2canvas from 'html2canvas'
@@ -138,6 +139,8 @@ import jsPDF from 'jspdf'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuth()
+
+const isAdmin = computed(() => auth.state.role?.toUpperCase() === 'ADMIN')
 
 const schoolName = ref('')
 const studentInfo = ref({})
@@ -524,12 +527,35 @@ const goBack = () => {
   router.push('/admin/student')
 }
 
+const resolveStudentId = () => {
+  if (route.params.studentId) return route.params.studentId
+
+  let studentId = auth.state.user?.studentId || localStorage.getItem('student_id')
+  if (!studentId) {
+    const studentInfoStr = localStorage.getItem('student_info')
+    if (studentInfoStr) {
+      try {
+        studentId = JSON.parse(studentInfoStr).studentId
+      } catch (_) {
+        /* ignore */
+      }
+    }
+  }
+  return studentId
+}
+
 const fetchReportData = async () => {
   try {
-    const studentId = route.params.studentId
+    const studentId = resolveStudentId()
     console.log('[AdminStudentReport] 开始加载报告数据, studentId:', studentId)
     console.log('[AdminStudentReport] 当前角色:', auth.state.role)
     console.log('[AdminStudentReport] 是否已登录:', auth.state.isLoggedIn)
+
+    if (!studentId) {
+      ElMessage.error('无法获取学号，请重新登录')
+      return
+    }
+
     const res = await getStudentReportData(studentId)
     console.log('[AdminStudentReport] API响应:', res)
     if (res.code === 200) {
@@ -635,6 +661,16 @@ onMounted(async () => {
   await fetchReportData()
   loading.value = false
 })
+
+watch(
+  () => route.params.studentId,
+  async (nextId, prevId) => {
+    if (!nextId || nextId === prevId) return
+    loading.value = true
+    await fetchReportData()
+    loading.value = false
+  }
+)
 </script>
 
 <style scoped>
@@ -674,6 +710,7 @@ onMounted(async () => {
 }
 
 .header-info {
+  flex: 1;
   text-align: center;
 }
 

@@ -23,7 +23,7 @@
         <el-form-item label="密码">
           <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" @keyup.enter="handleLogin" />
         </el-form-item>
-        <el-form-item>
+        <el-form-item class="login-submit-item">
           <el-button type="primary" @click="handleLogin" style="width: 100%" :loading="isLoading">登录</el-button>
         </el-form-item>
       </el-form>
@@ -178,5 +178,9 @@ const handleLogin = async () => {
   height: 44px;
   font-size: 15px;
   border-radius: 12px;
+}
+
+.login-submit-item :deep(.el-form-item__content) {
+  margin-left: 0 !important;
 }
 </style>
