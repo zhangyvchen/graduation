@@ -137,6 +137,17 @@ router.beforeEach((to, from, next) => {
     }
   }
 
+  // Allow students to access their own report pages
+  if (to.path.startsWith('/admin/student-report/') && auth.state.isLoggedIn && currentRole === 'STUDENT') {
+    const studentId = to.params.studentId
+    const currentStudentId = auth.state.user?.studentId || localStorage.getItem('student_id')
+    
+    if (studentId === currentStudentId) {
+      next()
+      return
+    }
+  }
+
   if (to.meta.requiresAuth) {
     if (!auth.state.isLoggedIn) {
       if (to.meta.role?.toUpperCase() === 'ADMIN') {
