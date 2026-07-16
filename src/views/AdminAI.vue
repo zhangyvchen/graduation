@@ -15,7 +15,7 @@
           <el-icon><Download /></el-icon> 导出记录
         </el-button>
         <el-button size="small" type="danger" @click="clearChatHistory">
-          <el-icon><Delete /></el-icon> 清空记录
+          <el-icon><Delete /></el-icon> 清除记忆
         </el-button>
       </div>
     </header>
@@ -69,11 +69,23 @@
             placeholder="输入您的问题，例如：2024届就业率趋势分析"
             @keyup.enter="handleSend"
             size="large"
-            :disabled="isLoading"
+            :disabled="isStreaming"
             clearable
           />
-          <el-button type="primary" @click="handleSend" :loading="isLoading">
+          <el-button
+            v-if="!isStreaming"
+            type="primary"
+            @click="handleSend"
+            :disabled="!inputMessage.trim()"
+          >
             <el-icon><Send /></el-icon> 发送
+          </el-button>
+          <el-button
+            v-else
+            type="danger"
+            @click="stopStreaming"
+          >
+            停止
           </el-button>
         </div>
       </el-card>
@@ -103,28 +115,28 @@
             <el-button
               size="small"
               @click="generateAnalysis('employment')"
-              :loading="isLoading"
+              :loading="isStreaming"
             >
               <el-icon><PieChart /></el-icon> 就业分析
             </el-button>
             <el-button
               size="small"
               @click="generateAnalysis('major')"
-              :loading="isLoading"
+              :loading="isStreaming"
             >
               <el-icon><School /></el-icon> 专业分析
             </el-button>
             <el-button
               size="small"
               @click="generateAnalysis('prediction')"
-              :loading="isLoading"
+              :loading="isStreaming"
             >
               <el-icon><TrendCharts /></el-icon> 趋势预测
             </el-button>
             <el-button
               size="small"
               @click="generateAnalysis('report')"
-              :loading="isLoading"
+              :loading="isStreaming"
             >
               <el-icon><Document /></el-icon> 年度报告
             </el-button>
@@ -162,12 +174,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
-import { aiChat, getChatHistory, getChatHistoryByYear, generateEmploymentAnalysis, generateMajorAnalysis, generatePredictionAnalysis, generateAnnualReport } from '../api/admin'
+import { getChatHistoryByYear } from '../api/admin'
+import { useAiChat } from '../composables/useAiChat'
 
-// 注册所有图标
 const {
   Download,
   Delete,
@@ -184,29 +196,26 @@ const {
   History
 } = ElementPlusIconsVue
 
-const messages = ref([
-  {
-    id: 1,
-    role: 'ai',
-    content: '您好！我是毕业数据报告系统的 AI 助手。我可以帮您分析毕业数据、生成统计报告、预测就业趋势等。请问有什么我可以帮助您的？',
-    time: new Date().toLocaleTimeString()
-  }
-])
-
-const inputMessage = ref('')
-const isLoading = ref(false)
-const currentYear = ref(new Date().getFullYear())
-const userId = ref('admin_' + new Date().getTime())
 const availableYears = ref([2022, 2023, 2024, 2025, 2026])
 
-// 计算属性
-const chatCount = computed(() => messages.value.length)
-
-// 格式化消息内容，支持换行和特殊字符
-const formatMessage = (content) => {
-  if (!content) return ''
-  return content.replace(/\n/g, '<br>')
-}
+const {
+  messages,
+  inputText: inputMessage,
+  isLoading,
+  isStreaming,
+  currentYear,
+  chatCount,
+  formatMessage,
+  initIdentityTracking,
+  loadChatHistory,
+  sendMessage,
+  stopGeneration: stopStreaming,
+  clearMemory
+} = useAiChat({
+  welcomeMessage:
+    '您好！我是毕业数据报告系统的 AI 助手。我可以帮您分析毕业数据、生成统计报告、预测就业趋势等。请问有什么我可以帮助您的？',
+  onError: () => ElMessage.error('AI聊天失败，请稍后重试')
+})
 
 const quickQuestions = [
   `${currentYear.value}届就业率是多少？`,
@@ -216,82 +225,19 @@ const quickQuestions = [
   '主要就业行业有哪些？'
 ]
 
-// 加载历史聊天记录
-const loadChatHistory = async () => {
-  try {
-    const response = await getChatHistory(userId.value)
-    if (response.code === 200 && response.data && response.data.length > 0) {
-      messages.value = response.data.map(msg => ({
-        ...msg,
-        time: new Date(msg.createTime).toLocaleTimeString()
-      }))
-      // 滚动到底部
-      setTimeout(() => {
-        const chatBody = document.querySelector('.chat-body')
-        if (chatBody) {
-          chatBody.scrollTop = chatBody.scrollHeight
-        }
-      }, 100)
-    }
-  } catch (error) {
-    console.error('加载聊天历史失败:', error)
-  }
-}
-
 const handleSend = async () => {
-  if (!inputMessage.value.trim()) return
-
-  const tempMessage = inputMessage.value
+  if (!inputMessage.value.trim() || isStreaming.value) return
+  const text = inputMessage.value
   inputMessage.value = ''
-  isLoading.value = true
-
-  // 添加用户消息
-  messages.value.push({
-    id: Date.now(),
-    role: 'user',
-    content: tempMessage,
-    time: new Date().toLocaleTimeString()
-  })
-
-  try {
-    const response = await aiChat({
-      userId: userId.value,
-      content: tempMessage,
-      year: currentYear.value,
-      messageType: 'general'
-    })
-
-    if (response.code === 200) {
-      // 添加AI回复
-      messages.value.push({
-        id: Date.now() + 1,
-        role: 'ai',
-        content: response.data,
-        time: new Date().toLocaleTimeString()
-      })
-    } else {
-      ElMessage.error(response.message || 'AI回复失败')
-      // 移除用户发送的消息
-      messages.value.pop()
-    }
-  } catch (error) {
-    console.error('AI聊天失败:', error)
-    ElMessage.error('AI聊天失败，请稍后重试')
-    // 移除用户发送的消息
-    messages.value.pop()
-  } finally {
-    isLoading.value = false
-  }
+  await sendMessage(text, currentYear.value)
 }
 
 const handleQuickQuestion = (question) => {
-  // 更新问题中的年份
   const updatedQuestion = question.replace(/\d{4}/, currentYear.value.toString())
   inputMessage.value = updatedQuestion
   handleSend()
 }
 
-// 生成特定类型的分析
 const generateAnalysis = async (type) => {
   const analysisNames = {
     employment: '就业分析',
@@ -299,71 +245,20 @@ const generateAnalysis = async (type) => {
     prediction: '趋势预测',
     report: '年度报告'
   }
-
-  const question = `生成${currentYear.value}年${analysisNames[type]}`
-
-  // 添加用户请求
-  messages.value.push({
-    id: Date.now(),
-    role: 'user',
-    content: question,
-    time: new Date().toLocaleTimeString()
-  })
-
-  isLoading.value = true
-
-  try {
-    let response
-    const data = {
-      userId: userId.value,
-      year: currentYear.value
-    }
-
-    switch (type) {
-      case 'employment':
-        response = await generateEmploymentAnalysis(data)
-        break
-      case 'major':
-        response = await generateMajorAnalysis(data)
-        break
-      case 'prediction':
-        response = await generatePredictionAnalysis(data)
-        break
-      case 'report':
-        response = await generateAnnualReport(data)
-        break
-    }
-
-    if (response.code === 200) {
-      messages.value.push({
-        id: Date.now() + 1,
-        role: 'ai',
-        content: response.data.summary || response.data,
-        time: new Date().toLocaleTimeString()
-      })
-    } else {
-      ElMessage.error(response.message || '分析失败')
-      // 移除用户发送的请求
-      messages.value.pop()
-    }
-  } catch (error) {
-    console.error('生成分析失败:', error)
-    ElMessage.error('生成分析失败，请稍后重试')
-    // 移除用户发送的请求
-    messages.value.pop()
-  } finally {
-    isLoading.value = false
-  }
+  await sendMessage(`生成${currentYear.value}年${analysisNames[type]}`, currentYear.value)
 }
 
-// 切换年份
 const changeYear = async (year) => {
   try {
     const response = await getChatHistoryByYear(year)
     if (response.code === 200) {
-      messages.value = response.data.map(msg => ({
-        ...msg,
-        time: new Date(msg.createTime).toLocaleTimeString()
+      messages.value = (response.data || []).map(msg => ({
+        id: msg.id,
+        role: msg.role === 'ai' ? 'ai' : 'user',
+        content: msg.role === 'ai' ? (msg.response || msg.content) : msg.content,
+        time: msg.createTime
+          ? new Date(msg.createTime).toLocaleTimeString()
+          : new Date().toLocaleTimeString()
       }))
       currentYear.value = year
       ElMessage.success(`已切换到${year}年的数据`)
@@ -374,7 +269,6 @@ const changeYear = async (year) => {
   }
 }
 
-// 导出聊天记录
 const exportChatHistory = () => {
   const chatContent = messages.value.map(msg => {
     return `[${msg.time}] ${msg.role === 'user' ? '用户' : 'AI'}：${msg.content}`
@@ -391,24 +285,22 @@ const exportChatHistory = () => {
   URL.revokeObjectURL(url)
 }
 
-// 清空聊天记录
 const clearChatHistory = async () => {
   try {
-    await ElMessageBox.confirm('确定要清空聊天记录吗？此操作不可恢复！', '提示', {
+    await ElMessageBox.confirm('确定要清空聊天记录和 AI 记忆吗？此操作不可恢复！', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     })
-
-    // 这里可以调用后端API删除记录，目前只清空前端显示
-    messages.value = []
-    ElMessage.success('聊天记录已清空')
+    await clearMemory({
+      resetText: '记忆已清空。您好！我是毕业数据报告系统的 AI 助手，请问有什么可以帮您的？'
+    })
+    ElMessage.success('聊天记录与 AI 记忆已清空')
   } catch {
-    // 用户取消
+    // 用户取消或请求失败
   }
 }
 
-// 滚动到底部
 const scrollToBottom = () => {
   setTimeout(() => {
     const chatBody = document.querySelector('.chat-body')
@@ -418,12 +310,12 @@ const scrollToBottom = () => {
   }, 100)
 }
 
-// 监听消息变化，自动滚动到底部
 watch(messages, () => {
   scrollToBottom()
 }, { deep: true })
 
 onMounted(() => {
+  initIdentityTracking()
   loadChatHistory()
 })
 </script>
@@ -539,6 +431,14 @@ onMounted(() => {
 
 .message-content {
   max-width: 70%;
+  width: fit-content;
+  height: fit-content;
+  align-self: flex-start;
+}
+
+.user-message .message-content {
+  align-self: flex-end;
+  margin-left: auto;
 }
 
 .message-text {
@@ -546,8 +446,42 @@ onMounted(() => {
   border-radius: 12px;
   font-size: 14px;
   line-height: 1.6;
-  white-space: pre-wrap;
   word-break: break-word;
+}
+
+.message-text :deep(p) {
+  margin: 0 0 8px;
+}
+
+.message-text :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.message-text :deep(h3),
+.message-text :deep(h4) {
+  margin: 10px 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.message-text :deep(h3:first-child),
+.message-text :deep(h4:first-child) {
+  margin-top: 0;
+}
+
+.message-text :deep(ul),
+.message-text :deep(ol) {
+  margin: 6px 0 10px;
+  padding-left: 20px;
+}
+
+.message-text :deep(li) {
+  margin: 4px 0;
+}
+
+.message-text :deep(strong) {
+  font-weight: 600;
 }
 
 .ai-message .message-text {

@@ -23,7 +23,7 @@
         <el-form-item label="密码">
           <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" @keyup.enter="handleLogin" />
         </el-form-item>
-        <el-form-item>
+        <el-form-item class="login-submit-item">
           <el-button type="primary" @click="handleLogin" style="width: 100%" :loading="isLoading">登录</el-button>
         </el-form-item>
       </el-form>
@@ -33,12 +33,13 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuth } from '../stores/auth'
 import { login } from '../api/admin'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuth()
 const loginForm = ref({
   username: '',
@@ -79,12 +80,26 @@ const handleLogin = async () => {
         name: data.name,
         role: data.role || 'admin'
       }
-      auth.login(userData)
-      // 强制再次设置 role，避免后端 role 字段为空导致守卫误判
-      auth.state.role = (userData.role || 'admin').toUpperCase()
+      auth.login({
+        ...userData,
+        role: (userData.role || 'admin').toUpperCase()
+      })
       console.log('[admin login success] role=', auth.state.role, 'token=', data.token?.slice(0, 20))
       ElMessage.success('登录成功')
-      router.push('/admin/dashboard')
+      
+      const redirect = route.query.redirect
+      const defaultRoute = '/admin/dashboard'
+      if (redirect && typeof redirect === 'string') {
+        const allowedPrefixes = ['/admin', '/report']
+        const isValidRedirect = allowedPrefixes.some(prefix => redirect.startsWith(prefix))
+        if (isValidRedirect) {
+          router.push(redirect)
+        } else {
+          router.push(defaultRoute)
+        }
+      } else {
+        router.push(defaultRoute)
+      }
     } else {
       ElMessage.error(response.message || '登录失败')
     }
@@ -102,41 +117,43 @@ const handleLogin = async () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #F8FAF9 0%, #EDF5F3 40%, #E8EEED 70%, #DDE9E7 100%);
 }
 
 .login-box {
-  width: 400px;
-  background: #fff;
-  padding: 45px;
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  width: 380px;
+  background: #FFFFFF;
+  padding: 48px 40px;
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(45, 90, 122, 0.08);
+  border: 1px solid #E8EEED;
 }
 
 .login-header {
   text-align: center;
-  margin-bottom: 35px;
+  margin-bottom: 36px;
 }
 
 .login-icon {
-  font-size: 48px;
-  margin-bottom: 15px;
+  font-size: 52px;
+  margin-bottom: 14px;
 }
 
 .login-header h2 {
   margin: 0 0 8px 0;
-  color: #333;
+  color: #2D5A7A;
   font-size: 24px;
+  font-weight: 600;
 }
 
 .login-subtitle {
-  color: #999;
+  color: #8BA4C4;
   font-size: 14px;
   margin: 0;
 }
 
 .login-form {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .login-form :deep(.el-form-item) {
@@ -144,12 +161,26 @@ const handleLogin = async () => {
 }
 
 .login-form :deep(.el-input__wrapper) {
-  border-radius: 8px;
+  border-radius: 12px;
+  border-color: #E8EEED;
+  box-shadow: none;
+}
+
+.login-form :deep(.el-input__wrapper:hover) {
+  border-color: #B6DDDC;
+}
+
+.login-form :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 2px rgba(182, 221, 220, 0.3);
 }
 
 .login-form :deep(.el-button) {
   height: 44px;
-  font-size: 16px;
-  border-radius: 8px;
+  font-size: 15px;
+  border-radius: 12px;
+}
+
+.login-submit-item :deep(.el-form-item__content) {
+  margin-left: 0 !important;
 }
 </style>

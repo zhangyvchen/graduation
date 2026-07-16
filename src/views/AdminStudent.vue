@@ -351,10 +351,7 @@ const handleAdd = () => {
 
 const handleViewReport = (row) => {
   router.push({
-    path: '/admin/statistics',
-    query: {
-      year: row.year
-    }
+    path: `/admin/student-report/${row.studentId}`
   })
 }
 

@@ -34,6 +34,12 @@ const routes = [
         component: () => import('../views/ReportDownload.vue')
       },
       {
+        path: 'my-report',
+        name: 'MyReport',
+        component: () => import('../views/AdminStudentReport.vue'),
+        meta: { requiresAuth: true, role: 'student' }
+      },
+      {
         path: 'ending',
         name: 'Ending',
         component: () => import('../views/FooterEnding.vue')
@@ -104,6 +110,12 @@ const routes = [
         path: 'report/:year',
         name: 'AdminReport',
         component: () => import('../views/AdminReport.vue')
+      },
+      {
+        path: 'student-report/:studentId',
+        name: 'AdminStudentReport',
+        component: () => import('../views/AdminStudentReport.vue'),
+        meta: { requiresAuth: true }
       }
     ]
   }
@@ -126,6 +138,17 @@ router.beforeEach((to, from, next) => {
   if (to.path.startsWith('/student/') && to.path !== '/student/login') {
     if (!auth.state.isLoggedIn || currentRole !== 'STUDENT') {
       next('/student/login')
+      return
+    }
+  }
+
+  // Allow students to access their own report pages
+  if (to.path.startsWith('/admin/student-report/') && auth.state.isLoggedIn && currentRole === 'STUDENT') {
+    const studentId = to.params.studentId
+    const currentStudentId = auth.state.user?.studentId || localStorage.getItem('student_id')
+    
+    if (studentId === currentStudentId) {
+      next()
       return
     }
   }
@@ -156,6 +179,18 @@ router.beforeEach((to, from, next) => {
       return
     }
     if (to.path.startsWith('/admin')) {
+      if (to.path.startsWith('/admin/student-report/')) {
+        const studentId = to.params.studentId
+        const currentStudentId = auth.state.user?.studentId || localStorage.getItem('student_id')
+        
+        if (studentId === currentStudentId) {
+          next()
+          return
+        } else {
+          next('/')
+          return
+        }
+      }
       next('/')
       return
     }

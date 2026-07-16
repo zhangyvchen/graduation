@@ -1,88 +1,84 @@
 <template>
   <div class="admin-layout">
-    <aside class="sidebar">
-      <div class="sidebar-logo">
-        <div class="logo-icon">📊</div>
-        <div class="logo-text">管理后台</div>
-      </div>
-      <el-menu 
-        :default-active="activeMenu" 
-        class="sidebar-menu" 
-        :router="true"
-        background-color="#1a1a2e"
-        text-color="#a0aec0"
-        active-text-color="#ffffff"
-      >
-        <el-menu-item index="/admin/dashboard">
-          <template #icon>
-            <span class="menu-icon">🏠</span>
-          </template>
-          管理首页
-        </el-menu-item>
-        <el-menu-item index="/admin/batch">
-          <template #icon>
-            <span class="menu-icon">📋</span>
-          </template>
-          批次管理
-        </el-menu-item>
-        <el-menu-item index="/admin/student">
-          <template #icon>
-            <span class="menu-icon">👥</span>
-          </template>
-          名单管理
-        </el-menu-item>
-        <el-menu-item index="/admin/statistics">
-          <template #icon>
-            <span class="menu-icon">📈</span>
-          </template>
-          数据统计
-        </el-menu-item>
-        <el-menu-item index="/admin/template">
-          <template #icon>
-            <span class="menu-icon">📝</span>
-          </template>
-          报告模板配置
-        </el-menu-item>
-
-        <el-menu-item index="/admin/import">
-          <template #icon>
-            <span class="menu-icon">📥</span>
-          </template>
-          数据导入
-        </el-menu-item>
-
-        <el-menu-item index="/admin/verify">
-          <template #icon>
-            <span class="menu-icon">📱</span>
-          </template>
-          扫码核销
-        </el-menu-item>
-
-        <el-menu-item index="/admin/message">
-          <template #icon>
-            <span class="menu-icon">💬</span>
-          </template>
-          留言审核
-          <el-badge
-              v-if="pendingMessageCount > 0"
-              :value="pendingMessageCount"
-              :max="99"
-              class="menu-badge"
-          />
-        </el-menu-item>
-
-      </el-menu>
-      <div class="sidebar-footer">
-        <div class="user-info" v-if="auth.state.user">
-          <span class="user-name">{{ auth.state.user.name }}</span>
-          <span class="user-role">管理员</span>
+    <div class="sidebar-wrapper" :class="{ collapsed: isCollapsed }">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-logo">
+            <div class="logo-icon">📊</div>
+            <div class="logo-text">管理后台</div>
+          </div>
         </div>
-        <el-button size="small" @click="goToHome" style="width: 100%; margin-bottom: 8px;">返回首页</el-button>
-        <el-button size="small" @click="showChangePasswordDialog = true" style="width: 100%; margin-bottom: 8px;">修改密码</el-button>
-        <el-button size="small" @click="handleLogout">退出登录</el-button>
+        <el-menu 
+          :default-active="activeMenu" 
+          class="sidebar-menu" 
+          :router="true"
+          background-color="#FFFFFF"
+          text-color="#2D5A7A"
+          active-text-color="#2D5A7A"
+          :collapse="false"
+        >
+          <el-menu-item index="/admin/dashboard">
+            <template #icon>
+              <span class="menu-icon">🏠</span>
+            </template>
+            <template #title>管理首页</template>
+          </el-menu-item>
+          <el-menu-item index="/admin/batch">
+            <template #icon>
+              <span class="menu-icon">📋</span>
+            </template>
+            <template #title>批次管理</template>
+          </el-menu-item>
+          <el-menu-item index="/admin/student">
+            <template #icon>
+              <span class="menu-icon">👥</span>
+            </template>
+            <template #title>名单管理</template>
+          </el-menu-item>
+          <el-menu-item index="/admin/statistics">
+            <template #icon>
+              <span class="menu-icon">📈</span>
+            </template>
+            <template #title>数据统计</template>
+          </el-menu-item>
+          <el-menu-item index="/admin/template">
+            <template #icon>
+              <span class="menu-icon">📝</span>
+            </template>
+            <template #title>报告模板配置</template>
+          </el-menu-item>
+          <el-menu-item index="/admin/verify">
+            <template #icon>
+              <span class="menu-icon">✅</span>
+            </template>
+            <template #title>核销管理</template>
+          </el-menu-item>
+          <el-menu-item index="/admin/import">
+            <template #icon>
+              <span class="menu-icon">📥</span>
+            </template>
+            <template #title>数据导入</template>
+          </el-menu-item>
+        </el-menu>
+        <div class="sidebar-footer">
+          <div class="user-info" v-if="auth.state.user">
+            <span class="user-name">{{ auth.state.user.name }}</span>
+            <span class="user-role">管理员</span>
+          </div>
+          <div class="footer-buttons">
+            <el-button @click="goToHome">返回首页</el-button>
+            <el-button @click="showChangePasswordDialog = true">修改密码</el-button>
+            <el-button type="danger" @click="handleLogout">退出登录</el-button>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="sidebar-toggle-container" :class="{ collapsed: isCollapsed }" :style="{ top: isCollapsed ? toggleTop + '%' : '50%' }">
+      <div class="sidebar-toggle" @click="toggleCollapse" @mousedown="handleMouseDown">
+        <span class="toggle-icon">{{ isCollapsed ? '▶' : '◀' }}</span>
       </div>
-    </aside>
-    <main class="main-content">
+    </div>
+    <main class="main-content" :class="{ 'sidebar-collapsed': isCollapsed }">
       <router-view />
     </main>
 
@@ -113,11 +109,54 @@ import { ElMessage } from 'element-plus'
 import { useAuth } from '../stores/auth'
 import { changePassword, getPendingMessageCount } from '../api/admin'
 
-
 const router = useRouter()
 const auth = useAuth()
 
 const activeMenu = computed(() => router.currentRoute.value.path)
+const isCollapsed = ref(false)
+const toggleTop = ref(50)
+const isDragging = ref(false)
+const dragStartY = ref(0)
+const dragStartTop = ref(0)
+
+const toggleCollapse = () => {
+  isCollapsed.value = !isCollapsed.value
+  if (!isCollapsed.value) {
+    toggleTop.value = 50
+  }
+}
+
+const handleMouseDown = (e) => {
+  e.preventDefault()
+  isDragging.value = true
+  dragStartY.value = e.clientY
+  dragStartTop.value = toggleTop.value
+  
+  document.addEventListener('mousemove', handleMouseMove)
+  document.addEventListener('mouseup', handleMouseUp)
+}
+
+const handleMouseMove = (e) => {
+  if (!isDragging.value) return
+  
+  const deltaY = e.clientY - dragStartY.value
+  const viewportHeight = window.innerHeight
+  const buttonHeight = 36
+  const margin = 20
+  
+  let newTop = dragStartTop.value + (deltaY / viewportHeight) * 100
+  
+  newTop = Math.max(margin / viewportHeight * 100, newTop)
+  newTop = Math.min((viewportHeight - buttonHeight - margin) / viewportHeight * 100, newTop)
+  
+  toggleTop.value = newTop
+}
+
+const handleMouseUp = () => {
+  isDragging.value = false
+  document.removeEventListener('mousemove', handleMouseMove)
+  document.removeEventListener('mouseup', handleMouseUp)
+}
 
 // 留言待审核数（轮询，每 30s 拉一次）
 const pendingMessageCount = ref(0)
@@ -144,99 +183,106 @@ const changePasswordForm = ref({
   newPassword: '',
   confirmPassword: ''
 })
+
 const handleLogout = () => {
-    auth.logout()
-    router.push('/')
+  auth.logout()
+  router.push('/')
 }
 
 const goToHome = () => {
-    window.open('/','_blank')
+  window.open('/', '_blank')
 }
 
-
 const handleChangePassword = async () => {
-  if (!changePasswordForm.value.oldPassword || !changePasswordForm.value.newPassword || !changePasswordForm.value.confirmPassword) {
-    ElMessage.warning('请填写完整信息')
-    return
-  }
   if (changePasswordForm.value.newPassword !== changePasswordForm.value.confirmPassword) {
-    ElMessage.warning('两次密码输入不一致')
+    ElMessage.error('两次输入的密码不一致')
     return
   }
-  if (changePasswordForm.value.newPassword.length < 6) {
-    ElMessage.warning('密码长度不能少于6位')
-    return
-  }
-
   isChanging.value = true
-
   try {
-    const response = await changePassword({
-      username: auth.state.user?.username,
-      oldPassword: changePasswordForm.value.oldPassword,
-      newPassword: changePasswordForm.value.newPassword
-    })
-
-    if (response.code === 200) {
-      ElMessage.success('密码修改成功，请使用新密码登录')
-      auth.logout()
-      showChangePasswordDialog.value = false
-      changePasswordForm.value = {
-        oldPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      }
-      router.push('/admin/login')
-    } else {
-      ElMessage.error(response.message || '密码修改失败')
+    await changePassword(changePasswordForm.value)
+    ElMessage.success('密码修改成功')
+    showChangePasswordDialog.value = false
+    changePasswordForm.value = {
+      oldPassword: '',
+      newPassword: '',
+      confirmPassword: ''
     }
   } catch (error) {
-    ElMessage.error('网络错误')
+    ElMessage.error('密码修改失败')
   } finally {
     isChanging.value = false
   }
 }
-
-
 </script>
 
 <style scoped>
 .admin-layout {
   display: flex;
   min-height: 100vh;
-  background: #f5f7fa;
+  background: #F8FAF9;
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar-wrapper {
+  width: 220px;
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 99;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-wrapper.collapsed {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .sidebar {
-  width: 220px;
-  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-  color: #fff;
+  width: 100%;
+  height: 100%;
+  background: #FFFFFF;
+  color: #2D5A7A;
   display: flex;
   flex-direction: column;
-  box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 2px 0 20px rgba(45, 90, 122, 0.08);
+  overflow-y: auto;
+  border-radius: 0 16px 16px 0;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  padding: 20px 16px;
+  border-bottom: 1px solid #E8EEED;
+  position: relative;
+  z-index: 20;
 }
 
 .sidebar-logo {
-  padding: 25px 20px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 10px;
 }
 
 .logo-icon {
-  font-size: 32px;
+  font-size: 26px;
 }
 
 .logo-text {
-  font-size: 18px;
-  font-weight: bold;
-  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  color: #2D5A7A;
 }
 
 .sidebar-menu {
   flex: 1;
-  padding: 15px 0;
+  padding: 12px 6px;
+  position: relative;
+  z-index: 20;
 }
 
 .sidebar-menu :deep(.el-menu) {
@@ -244,60 +290,29 @@ const handleChangePassword = async () => {
 }
 
 .sidebar-menu :deep(.el-menu-item) {
-  margin: 5px 10px;
-  border-radius: 8px;
+  margin: 4px 4px;
+  border-radius: 12px;
   height: 44px;
   line-height: 44px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    overflow: hidden;
-}
-.sidebar-menu :deep(.el-menu-item):before {
-    content: '';
-position: absolute;
-left: 0;
-top: 0;
-width: 3px;
-height: 100%;
-background: linear-gradient(180deg, #667eea, #764ba2);
-transform: scaleY(0);
-transition: transform 0.3s ease;
+  transition: all 0.3s ease;
 }
 
 .sidebar-menu :deep(.el-menu-item:hover) {
-  background: rgba(102, 126, 234, 0.2);
-    transform: translateX(6px);
-    box-shadow: 0 2px 12px rgba(102,126,234,0.15);
-}
-
-.sidebar-menu :deep(.el-menu-item:hover)::before {
-    transform: scaleY(1);
-}
-
-.sidebar-menu :deep(.el-menu-item:hover .menu-icon) {
-    transform: scale(1.25) rotate(-5deg);
+  background: #EDF5F3;
+  border-radius: 12px;
+  transform: translateX(5px);
 }
 
 .sidebar-menu :deep(.el-menu-item.is-active) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  background: #B6DDDC;
+  color: #2D5A7A;
+  border-radius: 12px;
+  font-weight: 500;
 }
 
-.sidebar-menu :deep(.el-menu-item.is-active .menu-icon) {
-    animation: icon-bounce 0.5s ease;
-}
-
-@keyframes icon-bounce {
-    0% { transform: scale(1); }
-    30% { transform: scale(1.3) rotate(10deg); }
-    60% { transform: scale(0.95) rotate(-5deg); }
-    100% { transform: scale(1) rotate(0); }
-}
 .menu-icon {
   font-size: 18px;
   margin-right: 10px;
-    display: inline-block;
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .menu-badge {
   position: absolute;
@@ -307,52 +322,169 @@ transition: transform 0.3s ease;
 }
 
 .sidebar-footer {
-  padding: 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 14px 20px;
+  border-top: 1px solid #E8EEED;
   margin-top: auto;
+  position: relative;
+  z-index: 20;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.footer-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
 }
 
 .user-info {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 15px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #E8EEED;
 }
 
 .user-name {
   font-size: 14px;
   font-weight: 500;
-  color: #fff;
+  color: #2D5A7A;
 }
 
 .user-role {
   font-size: 12px;
-  color: #a0aec0;
-  margin-top: 4px;
+  color: #8BA4C4;
+  margin-top: 3px;
 }
 
 .sidebar-footer :deep(.el-button) {
   width: 100%;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  border: none;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 0 20px;
-    box-sizing: border-box;
-    min-width: 0;
+  max-width: 170px;
+  background: #EDF5F3;
+  color: #2D5A7A;
+  border: 1px solid #E8EEED;
+  border-radius: 10px;
+  font-size: 13px;
+  padding: 9px 14px;
+  height: auto;
+  line-height: 1.4;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(45, 90, 122, 0.06);
 }
 
 .sidebar-footer :deep(.el-button:hover) {
-  background: rgba(255, 255, 255, 0.2);
+  background: #B6DDDC;
+  border-color: #B6DDDC;
+  transform: translateX(6px) scale(1.03);
+  box-shadow: 0 4px 16px rgba(182, 221, 220, 0.4);
+}
+
+.sidebar-footer :deep(.el-button:active) {
+  transform: translateX(3px) scale(0.98);
+  box-shadow: 0 2px 8px rgba(45, 90, 122, 0.06);
+}
+
+.sidebar-footer :deep(.el-button--danger) {
+  background: rgba(232, 160, 160, 0.1);
+  color: #E8A0A0;
+  border-color: rgba(232, 160, 160, 0.3);
+}
+
+.sidebar-footer :deep(.el-button--danger:hover) {
+  background: rgba(232, 160, 160, 0.2);
+  transform: translateX(6px) scale(1.03);
+  box-shadow: 0 4px 16px rgba(232, 160, 160, 0.3);
+}
+
+.sidebar-footer :deep(.el-button--danger:active) {
+  transform: translateX(3px) scale(0.98);
+  box-shadow: 0 2px 8px rgba(232, 160, 160, 0.1);
+}
+
+.sidebar-toggle-container {
+  position: fixed;
+  left: 234px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  transition: left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.sidebar-toggle-container.collapsed {
+  left: 12px;
+}
+
+.sidebar-toggle {
+  width: 36px;
+  height: 36px;
+  background: #2D5A7A;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 3px 10px rgba(45, 90, 122, 0.25);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sidebar-toggle:hover {
+  transform: scale(1.15);
+  box-shadow: 0 5px 15px rgba(45, 90, 122, 0.35);
+}
+
+.sidebar-toggle-container.collapsed .sidebar-toggle {
+  cursor: move;
+  cursor: -webkit-grab;
+}
+
+.sidebar-toggle-container.collapsed .sidebar-toggle:active {
+  cursor: grabbing;
+  transform: scale(1.2);
+  box-shadow: 0 8px 25px rgba(45, 90, 122, 0.45);
+}
+
+.toggle-icon {
+  font-size: 14px;
+  font-weight: bold;
 }
 
 .main-content {
   flex: 1;
   padding: 24px;
   overflow-y: auto;
+  margin-left: 220px;
+  transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+.main-content.sidebar-collapsed {
+  margin-left: 0;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: #D1E8E6;
+  border-radius: 2px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: #B6DDDC;
+}
+
 </style>

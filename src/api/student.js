@@ -39,6 +39,30 @@ export const getMyAchievements = (params) => request({
   params
 })
 
+// ====================== 学生报告模块 ======================
+// 删除学生(普通学生端)
+export function deleteStudentNormal(id) {
+  return request({
+    url: `/student/${id}`,
+    method: 'delete'
+  })
+}
+
+export function getStudentReportData(studentId) {
+  return request({
+    url: `/student-report/${studentId}`,
+    method: 'get'
+  })
+}
+
+export function generateStudentReport(studentId, templateId) {
+  return request({
+    url: `/student-report/generate/${studentId}/${templateId}`,
+    method: 'get'
+  })
+}
+
+// ====================== 学生前台功能模块 ======================
 // 横向对比
 export const getComparison = (params) => request({
   url: '/student/comparison/data',
@@ -72,6 +96,7 @@ export const getStudentByStudentId = (studentId) => request({
   params: { studentId }
 })
 
+// ====================== 管理员后台学生管理模块 ======================
 // 查询学生总数（管理端使用）
 export const getAllStudents = () => request({
   url: '/admin/student/count',
@@ -99,8 +124,14 @@ export const updateStudent = (data) => request({
   data
 })
 
-// 删除学生
+// 删除学生(管理员后台)
 export const deleteStudent = (id) => request({
   url: `/admin/student/${id}`,
   method: 'delete'
+})
+
+// 管理员检查学生是否存在
+export const checkStudentExists = (studentId) => request({
+  url: `/admin/student/check/${studentId}`,
+  method: 'get'
 })

@@ -41,6 +41,17 @@ export function saveAdmin(data) {
 }
 
 // AI功能相关接口
+export function aiChatStream(data) {
+  return fetch('/api/ai/chat/stream', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  })
+}
+
+/** @deprecated 请使用 aiStreamChat 工具函数 */
 export function aiChat(data) {
   return request({
     url: '/ai/chat',
@@ -49,10 +60,29 @@ export function aiChat(data) {
   })
 }
 
-export function getChatHistory(userId) {
+export function getChatHistory(userId, options = {}) {
+  const { userType = 'student', adminId } = options
   return request({
-    url: `/ai/chat-history/${userId}`,
-    method: 'get'
+    url: '/ai/chat-history',
+    method: 'get',
+    params: {
+      userType,
+      userId: userType === 'student' ? userId : undefined,
+      adminId: userType === 'admin' ? adminId : undefined
+    }
+  })
+}
+
+export function clearAiMemory(payload = {}) {
+  const { userType = 'student', userId, adminId } = payload
+  return request({
+    url: '/ai/memory',
+    method: 'delete',
+    params: {
+      userType,
+      userId: userType === 'student' ? userId : undefined,
+      adminId: userType === 'admin' ? adminId : undefined
+    }
   })
 }
 
