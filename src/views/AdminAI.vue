@@ -23,9 +23,12 @@
     <div class="ai-container">
       <el-card class="ai-card">
         <div class="chat-header">
-          <div class="ai-avatar">🤖</div>
+          <div class="ai-avatar">
+            <img :src="aiAvatarHeaderUrl" alt="AI助手" />
+            <span class="status-dot"></span>
+          </div>
           <div class="ai-info">
-            <h3>毕业数据报告 AI 助手</h3>
+            <h3>AI 智能助手</h3>
             <p>基于大数据分析，为您提供智能决策支持</p>
             <div class="ai-status">
               <el-tag size="small" type="success" effect="dark">
@@ -41,12 +44,21 @@
         <div class="chat-body">
           <div class="message-list">
             <div
-              class="message ai-message"
+              class="message"
               v-for="msg in messages"
               :key="msg.id"
-              :class="{ 'user-message': msg.role === 'user' }"
+              :class="msg.role === 'ai' ? 'ai-message' : 'user-message'"
             >
-              <div class="message-avatar">{{ msg.role === 'ai' ? '🤖' : '👤' }}</div>
+              <div class="message-avatar" v-if="msg.role === 'ai'">
+                <img :src="aiAvatarMsgUrl" alt="AI助手" />
+              </div>
+              <div class="message-avatar" v-else>
+                <svg viewBox="0 0 32 32" fill="none">
+                  <circle cx="16" cy="16" r="14" fill="#e8eef5"/>
+                  <circle cx="16" cy="14" r="5" fill="#667eea"/>
+                  <path d="M8 26 Q16 30 24 26" stroke="#667eea" stroke-width="2" stroke-linecap="round" fill="none"/>
+                </svg>
+              </div>
               <div class="message-content">
                 <div class="message-text" v-html="formatMessage(msg.content)"></div>
                 <div class="message-time">{{ msg.time }}</div>
@@ -198,6 +210,10 @@ const {
 
 const availableYears = ref([2022, 2023, 2024, 2025, 2026])
 
+/** 与悬浮窗共用同一套头像资源 */
+const aiAvatarHeaderUrl = '/static/AI_2.png'
+const aiAvatarMsgUrl = '/static/AI_3.png'
+
 const {
   messages,
   inputText: inputMessage,
@@ -214,7 +230,18 @@ const {
 } = useAiChat({
   welcomeMessage:
     '您好！我是毕业数据报告系统的 AI 助手。我可以帮您分析毕业数据、生成统计报告、预测就业趋势等。请问有什么我可以帮助您的？',
-  onError: () => ElMessage.error('AI聊天失败，请稍后重试')
+  onError: () => ElMessage.error('AI聊天失败，请稍后重试'),
+  onRiskBlocked: ({ riskWord, message }) => {
+    ElMessageBox.alert(
+      `${message}<br/><br/>命中词：<b>${riskWord || '敏感词'}</b><br/>该记录已写入异常对话，可在「AI 风控」中查看。`,
+      '内容安全提示',
+      {
+        dangerouslyUseHTMLString: true,
+        type: 'warning',
+        confirmButtonText: '知道了'
+      }
+    )
+  }
 })
 
 const quickQuestions = [
@@ -287,13 +314,18 @@ const exportChatHistory = () => {
 
 const clearChatHistory = async () => {
   try {
-    await ElMessageBox.confirm('确定要清空聊天记录和 AI 记忆吗？此操作不可恢复！', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await ElMessageBox.confirm(
+      '确定要清空聊天记录和 AI 记忆吗？将同时删除数据库中的历史记录，此操作不可恢复！',
+      '提示',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
     await clearMemory({
-      resetText: '记忆已清空。您好！我是毕业数据报告系统的 AI 助手，请问有什么可以帮您的？'
+      deleteDb: true,
+      resetText: '记忆与聊天记录已清空。您好！我是毕业数据报告系统的 AI 助手，请问有什么可以帮您的？'
     })
     ElMessage.success('聊天记录与 AI 记忆已清空')
   } catch {
@@ -322,18 +354,23 @@ onMounted(() => {
 
 <style scoped>
 .ai-page {
-  padding: 20px;
+  padding: 16px 20px;
   background: #f8f9fa;
-  min-height: 100vh;
+  height: calc(100vh - 48px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .content-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding: 0 0 15px 0;
+  margin-bottom: 12px;
+  padding: 0 0 12px 0;
   border-bottom: 2px solid #e9ecef;
+  flex-shrink: 0;
 }
 
 .content-header h2 {
@@ -350,37 +387,70 @@ onMounted(() => {
 
 .ai-container {
   display: flex;
-  gap: 20px;
-  margin-bottom: 30px;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
 }
 
 .ai-card {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  height: 600px;
+  height: 100%;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.ai-card :deep(.el-card__body) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .chat-header {
   display: flex;
   align-items: center;
   gap: 15px;
-  padding: 20px;
+  padding: 16px 20px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border-radius: 8px 8px 0 0;
+  flex-shrink: 0;
 }
 
 .ai-avatar {
-  font-size: 48px;
-  background: rgba(255, 255, 255, 0.2);
-  width: 60px;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
   border-radius: 50%;
+  overflow: visible;
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.ai-avatar img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.ai-avatar .status-dot {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #67c23a;
+  border: 2px solid #fff;
 }
 
 .ai-info h3 {
@@ -401,8 +471,9 @@ onMounted(() => {
 
 .chat-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 20px;
+  padding: 16px 20px;
   background: white;
 }
 
@@ -424,9 +495,20 @@ onMounted(() => {
 }
 
 .message-avatar {
-  font-size: 32px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
   align-self: flex-start;
+}
+
+.message-avatar img,
+.message-avatar svg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .message-content {
@@ -436,9 +518,12 @@ onMounted(() => {
   align-self: flex-start;
 }
 
+.user-message {
+  flex-direction: row-reverse;
+}
+
 .user-message .message-content {
   align-self: flex-end;
-  margin-left: auto;
 }
 
 .message-text {
@@ -539,9 +624,10 @@ onMounted(() => {
 .chat-input {
   display: flex;
   gap: 12px;
-  padding: 20px;
+  padding: 14px 16px;
   background: #f8f9fa;
   border-top: 1px solid #e9ecef;
+  flex-shrink: 0;
 }
 
 .chat-input :deep(.el-input) {
@@ -549,10 +635,13 @@ onMounted(() => {
 }
 
 .quick-actions {
-  width: 300px;
+  width: 280px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
+  overflow-y: auto;
+  max-height: 100%;
 }
 
 .quick-section {

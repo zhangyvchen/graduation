@@ -1,5 +1,6 @@
 <template>
   <div 
+    ref="rootRef"
     class="ai-float-container"
     :class="{ 'dragging': isDragging }"
     :style="containerStyle"
@@ -17,7 +18,7 @@
     </div>
     
     <transition name="chat-panel">
-      <div v-if="isOpen" class="ai-chat-panel" :style="panelStyle" @mousemove="onPanelMouseMove" @mousedown="handlePanelMouseDown" ref="panelRef">
+      <div v-if="isOpen" class="ai-chat-panel" :style="panelStyle" ref="panelRef">
         <div class="chat-header" @mousedown.stop="startDrag" @touchstart.stop="startDrag" style="cursor: grab;">
           <div class="chat-title">
             <div class="avatar-wrapper">
@@ -123,15 +124,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useAiChat } from '../composables/useAiChat'
 
 const isOpen = ref(false)
+const rootRef = ref(null)
+const panelRef = ref(null)
 const isDragging = ref(false)
 const unreadCount = ref(0)
 const messagesContainer = ref(null)
-const panelRef = ref(null)
-let resizeEdge = null
+let resizeMode = null // 仅右下角手柄: 'corner'
 
 if (window.__aiFloatButtonMounted__) {
   throw new Error('AIFloatButton should only be mounted once')
@@ -160,7 +163,10 @@ const {
   stopGeneration,
   clearMemory: clearChatMemory
 } = useAiChat({
-  onAfterChunk: () => scrollToBottom()
+  onAfterChunk: () => scrollToBottom(),
+  onRiskBlocked: ({ message }) => {
+    ElMessage.warning(message || '检测到敏感内容，已拦截并记录')
+  }
 })
 
 const aiAvatarUrl = ref('/static/AI_1.png')
@@ -168,8 +174,8 @@ const aiAvatarHeaderUrl = ref('/static/AI_2.png')
 const aiAvatarMsgUrl = ref('/static/AI_3.png')
 
 const position = ref({
-  x: window.innerWidth - 80,
-  y: window.innerHeight - 140
+  x: window.innerWidth - 100,
+  y: window.innerHeight - 160
 })
 
 const startX = ref(0)
@@ -178,13 +184,13 @@ const startPosX = ref(0)
 const startPosY = ref(0)
 const hasMoved = ref(false)
 
-const BTN_SIZE = 56
+const BTN_SIZE = 72
 const PANEL_GAP = 12
 const VIEW_PADDING = 10
 const MIN_PANEL_WIDTH = 300
-const MIN_PANEL_HEIGHT = 360
+const MIN_PANEL_HEIGHT = 320
 const DEFAULT_PANEL_WIDTH = 420
-const DEFAULT_PANEL_HEIGHT = 580
+const DEFAULT_PANEL_HEIGHT = 520
 
 const panelWidth = ref(DEFAULT_PANEL_WIDTH)
 const panelHeight = ref(DEFAULT_PANEL_HEIGHT)
@@ -205,23 +211,16 @@ const quickActions = ref([
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 
-const getMaxPanelSize = () => {
-  const viewportCap = Math.floor(viewport.value.height * 0.65)
-  const sideCap = viewport.value.height - VIEW_PADDING * 2 - BTN_SIZE - PANEL_GAP
-  return {
-    width: Math.max(MIN_PANEL_WIDTH, viewport.value.width - VIEW_PADDING * 2),
-    height: Math.max(MIN_PANEL_HEIGHT, Math.min(DEFAULT_PANEL_HEIGHT, viewportCap, sideCap))
-  }
-}
+/** 最大可拉伸尺寸：接近视口，不再把高度死锁在默认高度 */
+const getMaxPanelSize = () => ({
+  width: Math.max(MIN_PANEL_WIDTH, viewport.value.width - VIEW_PADDING * 2),
+  height: Math.max(MIN_PANEL_HEIGHT, viewport.value.height - VIEW_PADDING * 2)
+})
 
 const fitPanelToViewport = () => {
   const max = getMaxPanelSize()
   panelWidth.value = clamp(panelWidth.value, MIN_PANEL_WIDTH, max.width)
-  panelHeight.value = clamp(
-    Math.min(panelHeight.value, DEFAULT_PANEL_HEIGHT),
-    MIN_PANEL_HEIGHT,
-    max.height
-  )
+  panelHeight.value = clamp(panelHeight.value, MIN_PANEL_HEIGHT, max.height)
 }
 
 const clampButtonPosition = () => {
@@ -237,8 +236,8 @@ const getPanelPosition = () => {
   const vw = viewport.value.width
   const vh = viewport.value.height
   const max = getMaxPanelSize()
-  const preferredH = clamp(panelHeight.value, MIN_PANEL_HEIGHT, max.height)
   const w = clamp(panelWidth.value, MIN_PANEL_WIDTH, max.width)
+  const h = clamp(panelHeight.value, MIN_PANEL_HEIGHT, max.height)
   const btnX = position.value.x
   const btnY = position.value.y
 
@@ -247,13 +246,18 @@ const getPanelPosition = () => {
 
   const spaceAbove = Math.max(0, btnY - PANEL_GAP - VIEW_PADDING)
   const spaceBelow = Math.max(0, vh - (btnY + BTN_SIZE + PANEL_GAP) - VIEW_PADDING)
+  const placeAbove = spaceAbove >= spaceBelow
 
-  const placeAbove = spaceAbove >= preferredH || spaceAbove >= spaceBelow
-  const available = placeAbove ? spaceAbove : spaceBelow
-  const h = Math.max(200, Math.min(preferredH, available || preferredH))
-  const top = placeAbove
-    ? btnY - h - PANEL_GAP
-    : btnY + BTN_SIZE + PANEL_GAP
+  let top
+  if (placeAbove) {
+    top = btnY - h - PANEL_GAP
+    if (top < VIEW_PADDING) top = VIEW_PADDING
+  } else {
+    top = btnY + BTN_SIZE + PANEL_GAP
+    if (top + h > vh - VIEW_PADDING) {
+      top = Math.max(VIEW_PADDING, vh - VIEW_PADDING - h)
+    }
+  }
 
   return {
     left,
@@ -286,9 +290,6 @@ const toggleChat = () => {
   isOpen.value = !isOpen.value
   if (isOpen.value) {
     viewport.value = { width: window.innerWidth, height: window.innerHeight }
-    if (panelHeight.value > DEFAULT_PANEL_HEIGHT) {
-      panelHeight.value = DEFAULT_PANEL_HEIGHT
-    }
     clampButtonPosition()
     fitPanelToViewport()
     unreadCount.value = 0
@@ -296,6 +297,36 @@ const toggleChat = () => {
     scrollToBottom()
   }
 }
+
+const closeChat = () => {
+  if (!isOpen.value) return
+  isOpen.value = false
+}
+
+/** 点击聊天框与悬浮按钮以外区域时收起 */
+const onDocumentPointerDown = (e) => {
+  if (!isOpen.value || isDragging.value || isResizing.value) return
+  const target = e.target
+  if (!(target instanceof Node)) return
+  if (panelRef.value?.contains(target)) return
+  if (rootRef.value?.contains(target)) return
+  // Element Plus 弹层（如风控提示）不收起
+  if (target.closest?.('.el-overlay, .el-message-box, .el-message, .el-popper')) return
+  closeChat()
+}
+
+watch(isOpen, (open) => {
+  if (open) {
+    // 等当前点击事件冒泡结束再挂载，避免刚打开就被同一次点击关掉
+    nextTick(() => {
+      document.addEventListener('mousedown', onDocumentPointerDown, true)
+      document.addEventListener('touchstart', onDocumentPointerDown, true)
+    })
+  } else {
+    document.removeEventListener('mousedown', onDocumentPointerDown, true)
+    document.removeEventListener('touchstart', onDocumentPointerDown, true)
+  }
+})
 
 const startDrag = (e) => {
   e.preventDefault()
@@ -370,106 +401,62 @@ const snapToEdge = () => {
   clampButtonPosition()
 }
 
-const onPanelMouseMove = (e) => {
-  if (!panelRef.value || isResizing.value || isDragging.value) return
-  
-  const rect = panelRef.value.getBoundingClientRect()
-  const padding = 10
-  const x = e.clientX - rect.left
-  const y = e.clientY - rect.top
-  
-  let cursor = ''
-  resizeEdge = null
-  
-  if (x > rect.width - padding && y > rect.height - padding) {
-    cursor = 'nwse-resize'
-    resizeEdge = 'bottom-right'
-  } else if (x > rect.width - padding) {
-    cursor = 'ew-resize'
-    resizeEdge = 'right'
-  } else if (y > rect.height - padding) {
-    cursor = 'ns-resize'
-    resizeEdge = 'bottom'
-  }
-  
-  panelRef.value.style.cursor = cursor || ''
-}
-
-const handlePanelMouseDown = (e) => {
-  if (!panelRef.value || resizeEdge === null) return
-  if (e.target.closest('.chat-header')) return
-  
-  e.preventDefault()
-  e.stopPropagation()
-  isResizing.value = true
-  const event = e.touches ? e.touches[0] : e
-  startX.value = event.clientX
-  startY.value = event.clientY
-  startWidth.value = panelWidth.value
-  startHeight.value = panelHeight.value
-  
-  document.body.style.userSelect = 'none'
-  
-  document.addEventListener('mousemove', onResize)
-  document.addEventListener('mouseup', stopResize)
-  document.addEventListener('mouseleave', stopResize)
-  document.addEventListener('touchmove', onResize)
-  document.addEventListener('touchend', stopResize)
-}
-
 const startResize = (e) => {
   e.preventDefault()
   e.stopPropagation()
+  if (!panelRef.value) return
+
   isResizing.value = true
-  if (resizeEdge === null) {
-    resizeEdge = 'bottom-right'
-  }
+  resizeMode = 'corner'
   const event = e.touches ? e.touches[0] : e
   startX.value = event.clientX
   startY.value = event.clientY
-  startWidth.value = panelWidth.value
-  startHeight.value = panelHeight.value
-  
+
+  // 以当前实际渲染尺寸为起点，避免高度拖不动的死区
+  const rect = panelRef.value.getBoundingClientRect()
+  startWidth.value = rect.width
+  startHeight.value = rect.height
+  panelWidth.value = rect.width
+  panelHeight.value = rect.height
+
   document.body.style.userSelect = 'none'
-  
   document.addEventListener('mousemove', onResize)
   document.addEventListener('mouseup', stopResize)
   document.addEventListener('mouseleave', stopResize)
-  document.addEventListener('touchmove', onResize)
+  document.addEventListener('touchmove', onResize, { passive: false })
   document.addEventListener('touchend', stopResize)
 }
 
 const onResize = (e) => {
-  if (!isResizing.value) return
+  if (!isResizing.value || resizeMode !== 'corner') return
+  e.preventDefault?.()
 
   const event = e.touches ? e.touches[0] : e
   const deltaX = event.clientX - startX.value
   const deltaY = event.clientY - startY.value
   const max = getMaxPanelSize()
 
-  if (resizeEdge === 'bottom-right' || !resizeEdge) {
-    panelWidth.value = clamp(startWidth.value + deltaX, MIN_PANEL_WIDTH, max.width)
-    panelHeight.value = clamp(startHeight.value + deltaY, MIN_PANEL_HEIGHT, max.height)
-  } else if (resizeEdge === 'right') {
-    panelWidth.value = clamp(startWidth.value + deltaX, MIN_PANEL_WIDTH, max.width)
-  } else if (resizeEdge === 'bottom') {
-    panelHeight.value = clamp(startHeight.value + deltaY, MIN_PANEL_HEIGHT, max.height)
-  }
+  panelWidth.value = clamp(startWidth.value + deltaX, MIN_PANEL_WIDTH, max.width)
+  panelHeight.value = clamp(startHeight.value + deltaY, MIN_PANEL_HEIGHT, max.height)
 }
 
 const stopResize = () => {
   isResizing.value = false
-  resizeEdge = null
-  if (panelRef.value) {
-    panelRef.value.style.cursor = ''
-  }
+  resizeMode = null
   document.body.style.userSelect = ''
-  
   document.removeEventListener('mousemove', onResize)
   document.removeEventListener('mouseup', stopResize)
   document.removeEventListener('mouseleave', stopResize)
   document.removeEventListener('touchmove', onResize)
   document.removeEventListener('touchend', stopResize)
+  savePanelSize()
+}
+
+const savePanelSize = () => {
+  localStorage.setItem('aiFloatPanelSize', JSON.stringify({
+    width: panelWidth.value,
+    height: panelHeight.value
+  }))
 }
 
 const savePosition = () => {
@@ -487,6 +474,16 @@ const loadPosition = () => {
       }
     } catch (e) {
       console.error('加载位置失败:', e)
+    }
+  }
+  const savedSize = localStorage.getItem('aiFloatPanelSize')
+  if (savedSize) {
+    try {
+      const size = JSON.parse(savedSize)
+      if (size.width) panelWidth.value = size.width
+      if (size.height) panelHeight.value = size.height
+    } catch (e) {
+      // ignore
     }
   }
   clampButtonPosition()
@@ -541,6 +538,8 @@ onUnmounted(() => {
   document.removeEventListener('mouseleave', stopDrag)
   document.removeEventListener('touchmove', onDrag)
   document.removeEventListener('touchend', stopDrag)
+  document.removeEventListener('mousedown', onDocumentPointerDown, true)
+  document.removeEventListener('touchstart', onDocumentPointerDown, true)
   window.__aiFloatButtonMounted__ = false
 })
 </script>
@@ -564,8 +563,8 @@ onUnmounted(() => {
 }
 
 .ai-float-btn {
-  width: 56px;
-  height: 56px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -602,8 +601,8 @@ onUnmounted(() => {
 }
 
 .btn-inner {
-  width: 48px;
-  height: 48px;
+  width: 62px;
+  height: 62px;
   border-radius: 50%;
   background: #fff;
   display: flex;
@@ -616,8 +615,8 @@ onUnmounted(() => {
 }
 
 .ai-icon {
-  width: 28px;
-  height: 28px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   object-fit: cover;
   pointer-events: none;
@@ -629,9 +628,9 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  width: 64px;
-  height: 64px;
-  margin: -8px;
+  width: 80px;
+  height: 80px;
+  margin: -4px;
   border-radius: 50%;
   z-index: 10;
   cursor: grab;
@@ -1102,10 +1101,10 @@ onUnmounted(() => {
 
 .resize-handle {
   position: absolute;
-  bottom: 8px;
-  right: 8px;
-  width: 20px;
-  height: 20px;
+  bottom: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
   cursor: nwse-resize;
   background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
   border-radius: 6px;
@@ -1113,7 +1112,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 10;
+  z-index: 20;
+  touch-action: none;
 }
 
 .resize-handle:hover {

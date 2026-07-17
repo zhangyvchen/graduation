@@ -2,7 +2,7 @@ import { ref, computed, watch } from 'vue'
 import { useAuth } from '../stores/auth'
 import { streamAIChat } from '../utils/aiStreamChat'
 import { formatAIContent } from '../utils/formatAIContent'
-import { getChatHistory, clearAiMemory } from '../api/admin'
+import { getChatHistory, clearAiMemory, checkAiRisk } from '../api/admin'
 
 const DEFAULT_WELCOME =
   '您好！我是毕业数据报告系统的 AI 助手，有什么可以帮您的？'
@@ -98,7 +98,8 @@ export function useAiChat(options = {}) {
     welcomeMessage = DEFAULT_WELCOME,
     defaultYear = new Date().getFullYear(),
     onAfterChunk = null,
-    onError = null
+    onError = null,
+    onRiskBlocked = null
   } = options
 
   const { state: authState } = useAuth()
@@ -140,12 +141,13 @@ export function useAiChat(options = {}) {
     }]
   }
 
-  const clearMemoryForIdentity = async (targetIdentity) => {
+  const clearMemoryForIdentity = async (targetIdentity, deleteDb = false) => {
     if (!targetIdentity || targetIdentity.userRole === 'guest') return
     await clearAiMemory({
       userType: targetIdentity.userRole,
       userId: targetIdentity.userId,
-      adminId: targetIdentity.adminId
+      adminId: targetIdentity.adminId,
+      deleteDb
     })
   }
 
@@ -227,6 +229,38 @@ export function useAiChat(options = {}) {
     const content = (rawContent ?? inputText.value).trim()
     if (!content || isStreaming.value) return
 
+    const yearMatch = content.match(/(\d{4})年/)
+    const year = yearOverride
+      ?? (yearMatch ? parseInt(yearMatch[1], 10) : currentYear.value)
+    const id = identity.value
+
+    try {
+      const riskRes = await checkAiRisk({
+        content,
+        userId: id.userId,
+        adminId: id.adminId,
+        userRole: id.userRole,
+        year
+      })
+      if (riskRes?.code === 403 || riskRes?.data?.blocked) {
+        const riskWord = riskRes?.data?.riskWord || '敏感词'
+        const tip = riskRes?.message || `检测到敏感内容「${riskWord}」，已拦截并记录。`
+        onRiskBlocked?.({ riskWord, message: tip, raw: riskRes })
+        return
+      }
+    } catch (error) {
+      // 拦截器若把业务 403 当成异常抛出，也要按拦截处理，不能继续发给模型
+      const data = error?.response?.data
+      if (data?.code === 403 || data?.data?.blocked) {
+        const riskWord = data?.data?.riskWord || '敏感词'
+        const tip = data?.message || `检测到敏感内容「${riskWord}」，已拦截并记录。`
+        onRiskBlocked?.({ riskWord, message: tip, raw: data })
+        return
+      }
+      // 预检接口不可用时不阻断；流式接口仍会二次拦截
+      console.warn('危险词预检失败，继续发送:', error)
+    }
+
     stopGeneration()
     abortController = new AbortController()
     isStreaming.value = true
@@ -251,12 +285,6 @@ export function useAiChat(options = {}) {
       time: formatTime()
     })
 
-    const yearMatch = content.match(/(\d{4})年/)
-    const year = yearOverride
-      ?? (yearMatch ? parseInt(yearMatch[1], 10) : currentYear.value)
-
-    const id = identity.value
-
     try {
       await streamAIChat({
         content,
@@ -273,6 +301,14 @@ export function useAiChat(options = {}) {
           if (aiMsgIndex !== -1) {
             messages.value[aiMsgIndex].content += chunk
             onAfterChunk?.(messages.value[aiMsgIndex])
+          }
+        },
+        onBlocked: (payload) => {
+          const tip = payload?.message || `检测到敏感内容「${payload?.riskWord || '敏感词'}」，已拦截并记录。`
+          onRiskBlocked?.({ riskWord: payload?.riskWord, message: tip, raw: payload })
+          const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
+          if (aiMsgIndex !== -1) {
+            messages.value[aiMsgIndex].content = tip
           }
         }
       })
@@ -292,12 +328,12 @@ export function useAiChat(options = {}) {
     }
   }
 
-  const clearMemory = async ({ resetText } = {}) => {
+  const clearMemory = async ({ resetText, deleteDb = false } = {}) => {
     const id = identity.value
     stopGeneration()
 
     try {
-      await clearMemoryForIdentity(id)
+      await clearMemoryForIdentity(id, deleteDb)
     } catch (error) {
       console.error('清除记忆失败:', error)
       throw error
