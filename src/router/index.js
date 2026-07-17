@@ -92,6 +92,11 @@ const routes = [
         component: () => import('../views/AdminAI.vue')
       },
       {
+        path: 'ai-risk',
+        name: 'AdminAiRisk',
+        component: () => import('../views/AdminAiRisk.vue')
+      },
+      {
         path: 'import',
         name: 'AdminImport',
         component: () => import('../views/AdminImport.vue')

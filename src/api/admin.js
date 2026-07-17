@@ -74,15 +74,104 @@ export function getChatHistory(userId, options = {}) {
 }
 
 export function clearAiMemory(payload = {}) {
-  const { userType = 'student', userId, adminId } = payload
+  const { userType = 'student', userId, adminId, deleteDb = false } = payload
   return request({
     url: '/ai/memory',
     method: 'delete',
     params: {
       userType,
       userId: userType === 'student' ? userId : undefined,
+      adminId: userType === 'admin' ? adminId : undefined,
+      deleteDb
+    }
+  })
+}
+
+export function deleteChatHistory(payload = {}) {
+  const { userType = 'student', userId, adminId } = payload
+  return request({
+    url: '/ai/chat-history',
+    method: 'delete',
+    params: {
+      userType,
+      userId: userType === 'student' ? userId : undefined,
       adminId: userType === 'admin' ? adminId : undefined
     }
+  })
+}
+
+export function deleteChatMessage(id) {
+  return request({
+    url: `/ai/chat-history/message/${id}`,
+    method: 'delete'
+  })
+}
+
+export function checkAiRisk(data) {
+  return request({
+    url: '/ai/risk-check',
+    method: 'post',
+    data
+  })
+}
+
+export function getAbnormalChats(params = {}) {
+  return request({
+    url: '/ai/abnormal',
+    method: 'get',
+    params
+  })
+}
+
+export function deleteAbnormalChat(id) {
+  return request({
+    url: `/ai/abnormal/${id}`,
+    method: 'delete'
+  })
+}
+
+export function getRiskWords(params = {}) {
+  return request({
+    url: '/admin/ai-risk/words',
+    method: 'get',
+    params
+  })
+}
+
+export function addRiskWord(data) {
+  return request({
+    url: '/admin/ai-risk/words',
+    method: 'post',
+    data
+  })
+}
+
+export function updateRiskWord(id, data) {
+  return request({
+    url: `/admin/ai-risk/words/${id}`,
+    method: 'put',
+    data
+  })
+}
+
+export function deleteRiskWord(id) {
+  return request({
+    url: `/admin/ai-risk/words/${id}`,
+    method: 'delete'
+  })
+}
+
+export function getSensitiveLexiconStats() {
+  return request({
+    url: '/admin/ai-risk/lexicon/stats',
+    method: 'get'
+  })
+}
+
+export function reloadSensitiveLexicon() {
+  return request({
+    url: '/admin/ai-risk/lexicon/reload',
+    method: 'post'
   })
 }
 
