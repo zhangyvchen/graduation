@@ -2,12 +2,26 @@
 
 ## 技术栈
 
+### 基础框架
 - Vue 3 + Composition API
 - Vite 5
+- Vue Router 4
 - Element Plus
-- ECharts
 - Axios
-- Vue Router
+- ECharts 5
+
+### AI / 交互
+- **SSE** 流式对话（`utils/aiStreamChat.js`）
+- **Composable**：`composables/useAiChat.js`（发送、停止、记忆、历史、风控预检）
+- 全局悬浮助手 `AIFloatButton.vue` + 管理端 `AdminAI.vue`
+- AI 风控页 `AdminAiRisk.vue`（异常对话 / 自定义危险词）
+
+### 其它能力
+- html2canvas / jsPDF（报告导出相关）
+- html5-qrcode / qrcode（扫码核销、二维码）
+- 规则解说 `storyGenerator.js` + `DataStory.vue`（非大模型）
+
+> 以后每引入新技术，请在文末「技术引入记录」追加一行。
 
 ## 项目结构
 
@@ -143,6 +157,7 @@ npm run build
 | `/admin/statistics` | 数据统计 |
 | `/admin/template` | 报告模板 |
 | `/admin/ai` | AI 助手 |
+| `/admin/ai-risk` | AI 风控（异常对话 / 危险词） |
 | `/admin/import` | 数据导入 |
 | `/admin/verify` | 核销管理 |
 | `/admin/report/:year` | 年度报告 |
@@ -176,9 +191,11 @@ server: {
 
 | 能力 | 实现 | 入口 |
 |------|------|------|
-| 智能问答 | 后端智谱 GLM + `/ai/chat/stream` | 全局 `AIFloatButton`、管理后台 `/admin/ai` |
-| 数据解说 | 前端规则模板 `storyGenerator.js` | 成长轨迹 / 去向地图 / 学习画像页顶部 |
-| 对话逻辑复用 | `composables/useAiChat.js` | 悬浮窗与管理页共用发送/停止/记忆/历史 |
+| 智能问答 | 后端智谱 GLM + SSE `/ai/chat/stream` | 全局 `AIFloatButton`、管理后台 `/admin/ai` |
+| 风控预检 | 发送前调 `/ai/risk-check` | `useAiChat` |
+| 异常 / 词库管理 | 异常表、自定义危险词 | `/admin/ai-risk` |
+| 数据解说 | 前端规则模板 `storyGenerator.js` | 成长轨迹 / 去向地图 / 学习画像 |
+| 对话逻辑复用 | `composables/useAiChat.js` | 悬浮窗与管理页共用 |
 
 两处 AI 界面共用 `useAiChat`，UI 各自独立：前者是全局助手，后者是后台工作台。
 
@@ -188,3 +205,18 @@ server: {
 - **图表**：ECharts
 - **UI**：Element Plus
 - **HTTP**：Axios 统一封装（`api/request.js`）
+- **流式 AI**：SSE + `aiStreamChat.js`
+
+## 技术引入记录
+
+> 每次用了新技术就往下加一行。
+
+| 日期 | 技术 | 用途 |
+|------|------|------|
+| 初期 | Vue 3 / Vite / Vue Router / Element Plus | 前端主框架与 UI |
+| 初期 | Axios / ECharts | 请求与数据可视化 |
+| 中期 | html2canvas / jsPDF | 报告导出相关 |
+| 中期 | html5-qrcode / qrcode | 扫码核销 |
+| 2026-07 | SSE + `aiStreamChat` | AI 流式打字输出 |
+| 2026-07 | `useAiChat` composable | 悬浮窗与管理页共用对话逻辑 |
+| 2026-07 | AI 风控页 + 发送预检 | 对接异常表与危险词管理 |

@@ -1,26 +1,29 @@
 /**
- * 解析 SSE 事件文本，保留换行结构
+ * 解析 SSE 事件文本，保留换行结构；支持 event 名
  */
 function parseSSEEvent(eventText) {
-  if (!eventText) return ''
+  if (!eventText) return { event: 'message', data: '' }
 
+  let eventName = 'message'
   const dataLines = []
   for (const line of eventText.split('\n')) {
-    if (line.startsWith('data:')) {
+    if (line.startsWith('event:')) {
+      eventName = line.slice(6).trim() || 'message'
+    } else if (line.startsWith('data:')) {
       const value = line.startsWith('data: ') ? line.slice(6) : line.slice(5)
       dataLines.push(value)
     }
   }
 
   if (dataLines.length > 0) {
-    return dataLines.join('\n')
+    return { event: eventName, data: dataLines.join('\n') }
   }
 
-  // 兼容非标准 SSE 纯文本
   const trimmed = eventText.trim()
-  return trimmed.startsWith('data:')
+  const data = trimmed.startsWith('data:')
     ? (trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed.slice(5))
     : trimmed
+  return { event: eventName, data }
 }
 
 /**
@@ -34,7 +37,8 @@ export async function streamAIChat({
   messageType = 'general',
   userRole = 'guest',
   signal,
-  onChunk
+  onChunk,
+  onBlocked
 }) {
   const response = await fetch('/api/ai/chat/stream', {
     method: 'POST',
@@ -71,9 +75,25 @@ export async function streamAIChat({
       const eventText = buffer.slice(0, eventEnd)
       buffer = buffer.slice(eventEnd + 2)
 
-      const text = parseSSEEvent(eventText)
-      if (text && !text.includes('[DONE]')) {
-        onChunk(text)
+      const { event, data } = parseSSEEvent(eventText)
+      if (!data || data.includes('[DONE]')) {
+        eventEnd = buffer.indexOf('\n\n')
+        continue
+      }
+
+      if (event === 'blocked') {
+        let payload = { message: data }
+        try {
+          payload = JSON.parse(data)
+        } catch (_) {
+          // ignore
+        }
+        onBlocked?.(payload)
+        return
+      }
+
+      if (event !== 'error') {
+        onChunk?.(data)
       }
 
       eventEnd = buffer.indexOf('\n\n')
@@ -81,7 +101,17 @@ export async function streamAIChat({
   }
 
   const remaining = parseSSEEvent(buffer)
-  if (remaining && !remaining.includes('[DONE]')) {
-    onChunk(remaining)
+  if (remaining.data && !remaining.data.includes('[DONE]')) {
+    if (remaining.event === 'blocked') {
+      let payload = { message: remaining.data }
+      try {
+        payload = JSON.parse(remaining.data)
+      } catch (_) {
+        // ignore
+      }
+      onBlocked?.(payload)
+      return
+    }
+    onChunk?.(remaining.data)
   }
 }

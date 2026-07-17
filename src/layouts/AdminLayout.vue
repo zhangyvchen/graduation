@@ -79,6 +79,12 @@
             </template>
             <template #title>AI 助手</template>
           </el-menu-item>
+          <el-menu-item index="/admin/ai-risk">
+            <template #icon>
+              <span class="menu-icon">🛡️</span>
+            </template>
+            <template #title>AI 风控</template>
+          </el-menu-item>
         </el-menu>
         <div class="sidebar-footer">
           <div class="user-info" v-if="auth.state.user">
