@@ -17,7 +17,6 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
         configure: (proxy) => {
-          // 后端未启动时避免 Vite 刷屏抛 AggregateError
           proxy.on('error', (err, req, res) => {
             console.warn(`[vite proxy] 后端不可达: ${req?.url || ''} (${err.code || err.message})`)
             if (res && !res.headersSent) {
