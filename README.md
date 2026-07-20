@@ -12,12 +12,14 @@
 
 ### AI / 交互
 - **SSE** 流式对话（`utils/aiStreamChat.js`）
-- **Composable**：`composables/useAiChat.js`（发送、停止、记忆、历史、风控预检）
+- **Composable**：`composables/useAiChat.js`（多会话、模型切换、识图、记忆、历史）
+- 富文本渲染：`ChatRichBody.vue` + `aiContentParts.js`（Markdown / ECharts 代码块）
 - 全局悬浮助手 `AIFloatButton.vue` + 管理端 `AdminAI.vue`
-- AI 风控页 `AdminAiRisk.vue`（异常对话 / 自定义危险词）
+- AI 风控页 `AdminAiRisk.vue`、历史页 `AdminAiHistory.vue`
+- 一键周报/月报弹窗 `PeriodBriefDialog.vue`；报告页「未来建议」一键生成
 
 ### 其它能力
-- html2canvas / jsPDF（报告导出相关）
+- html2canvas / jsPDF（报告 / 周报 PDF 导出）
 - html5-qrcode / qrcode（扫码核销、二维码）
 - 规则解说 `storyGenerator.js` + `DataStory.vue`（非大模型）
 
@@ -54,9 +56,16 @@ src/
 │   └── studentVerify.js
 ├── utils/
 │   ├── aiStreamChat.js                  # AI 流式对话（SSE）
+│   ├── aiContentParts.js                # 拆分 Markdown / echarts 代码块
+│   ├── formatAIContent.js               # 简易 Markdown → HTML
+│   ├── imageCompress.js                 # 识图上传前压缩
 │   └── storyGenerator.js                # 数据页规则解说文案
+├── composables/
+│   └── useAiChat.js                     # 对话公共逻辑
 ├── components/
 │   ├── AIFloatButton.vue                # 全局 AI 悬浮助手
+│   ├── ChatRichBody.vue                 # AI 消息富文本 + 图表
+│   ├── PeriodBriefDialog.vue            # 一键周报 / 月报
 │   ├── DataStory.vue                    # 数据解说（打字机 + 语音）
 │   ├── DanmakuLayer.vue
 │   ├── MessageWall.vue
@@ -75,11 +84,14 @@ src/
 │   ├── AdminStudent.vue
 │   ├── AdminStatistics.vue
 │   ├── AdminTemplate.vue
-│   ├── AdminAI.vue                      # 管理后台 AI 助手
+│   ├── AdminAI.vue                      # 管理后台 AI 助手（含周报入口）
+│   ├── AdminAiHistory.vue               # AI 聊天历史管理
+│   ├── AdminAiRisk.vue                  # AI 风控
 │   ├── AdminImport.vue
 │   ├── AdminVerify.vue
 │   ├── AdminReport.vue
-│   ├── AdminStudentReport.vue
+│   ├── AdminStudentReport.vue           # 管理端学生报告（含未来建议）
+│   ├── StudentReport.vue                # 学生端报告（含未来建议）
 │   └── student/                         # 学生个人中心
 │       ├── Login.vue
 │       ├── Profile.vue
@@ -156,12 +168,13 @@ npm run build
 | `/admin/student` | 学生管理 |
 | `/admin/statistics` | 数据统计 |
 | `/admin/template` | 报告模板 |
-| `/admin/ai` | AI 助手 |
+| `/admin/ai` | AI 助手（对话 / 识图 / 一键周报月报） |
+| `/admin/ai-history` | AI 聊天历史管理 |
 | `/admin/ai-risk` | AI 风控（异常对话 / 危险词） |
 | `/admin/import` | 数据导入 |
 | `/admin/verify` | 核销管理 |
 | `/admin/report/:year` | 年度报告 |
-| `/admin/student-report/:studentId` | 学生个人报告 |
+| `/admin/student-report/:studentId` | 学生个人报告（含未来建议） |
 
 ## 代理配置
 
@@ -191,11 +204,16 @@ server: {
 
 | 能力 | 实现 | 入口 |
 |------|------|------|
-| 智能问答 | 后端智谱 GLM + SSE `/ai/chat/stream` | 全局 `AIFloatButton`、管理后台 `/admin/ai` |
-| 风控预检 | 发送前调 `/ai/risk-check` | `useAiChat` |
-| 异常 / 词库管理 | 异常表、自定义危险词 | `/admin/ai-risk` |
-| 数据解说 | 前端规则模板 `storyGenerator.js` | 成长轨迹 / 去向地图 / 学习画像 |
-| 对话逻辑复用 | `composables/useAiChat.js` | 悬浮窗与管理页共用 |
+| 智能问答 | SSE `/ai/chat/stream` + `useAiChat` | `AIFloatButton`、`/admin/ai` |
+| 模型切换 | `GET /ai/models`（识图 / 纯文本） | 对话页模型下拉 |
+| 识图 | 压缩上传 + 多模态流式 | 仅视觉模型可选 |
+| 富文本 / 图表 | `ChatRichBody` 解析 markdown 与 echarts 块 | 助手消息气泡 |
+| 风控预检 | `/ai/risk-check` | `useAiChat` |
+| 异常 / 词库 | 异常表、自定义危险词 | `/admin/ai-risk` |
+| 聊天历史管理 | `/ai/messages/manage` 等 | `/admin/ai-history` |
+| 一键周报 / 月报 | `/ai/period-brief` + PDF 导出 | `AdminAI` → `PeriodBriefDialog` |
+| 未来建议 | `/ai/student-future-advice` | 管理端 / 学生端报告页按钮 |
+| 数据解说 | 前端规则模板 `storyGenerator.js` | 成长轨迹 / 去向 / 学习画像 |
 
 两处 AI 界面共用 `useAiChat`，UI 各自独立：前者是全局助手，后者是后台工作台。
 
@@ -220,3 +238,5 @@ server: {
 | 2026-07 | SSE + `aiStreamChat` | AI 流式打字输出 |
 | 2026-07 | `useAiChat` composable | 悬浮窗与管理页共用对话逻辑 |
 | 2026-07 | AI 风控页 + 发送预检 | 对接异常表与危险词管理 |
+| 2026-07 | `ChatRichBody` + 模型切换 | 图表块渲染、识图/纯文本切换 |
+| 2026-07 | 周报月报弹窗 + 未来建议 | 对接 `period-brief` / `student-future-advice` |

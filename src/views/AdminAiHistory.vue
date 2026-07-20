@@ -27,21 +27,29 @@
           <el-button type="success" @click="openMsgDialog()">新增记录</el-button>
         </div>
 
-        <el-table :data="messageList" v-loading="loadingMsg" stripe border height="520">
-          <el-table-column prop="id" label="ID" width="70" />
-          <el-table-column prop="userType" label="类型" width="90">
+        <el-table
+          :data="messageList"
+          v-loading="loadingMsg"
+          stripe
+          border
+          height="520"
+          :default-sort="{ prop: 'id', order: 'ascending' }"
+          @sort-change="onMsgSortChange"
+        >
+          <el-table-column prop="id" label="ID" width="80" sortable="custom" />
+          <el-table-column prop="userType" label="类型" width="100" sortable="custom">
             <template #default="{ row }">
               <el-tag size="small">{{ row.userType || '-' }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="userId" label="学号" width="130" show-overflow-tooltip />
-          <el-table-column prop="adminId" label="管理员ID" width="100" />
-          <el-table-column prop="sessionId" label="会话ID" width="90" />
-          <el-table-column prop="role" label="角色" width="80" />
-          <el-table-column prop="year" label="年份" width="80" />
+          <el-table-column prop="userId" label="学号" width="130" show-overflow-tooltip sortable="custom" />
+          <el-table-column prop="adminId" label="管理员ID" width="110" sortable="custom" />
+          <el-table-column prop="sessionId" label="会话ID" width="100" sortable="custom" />
+          <el-table-column prop="role" label="角色" width="90" sortable="custom" />
+          <el-table-column prop="year" label="年份" width="90" sortable="custom" />
           <el-table-column prop="content" label="用户内容" min-width="180" show-overflow-tooltip />
           <el-table-column prop="response" label="AI 回复" min-width="200" show-overflow-tooltip />
-          <el-table-column prop="createTime" label="时间" width="170">
+          <el-table-column prop="createTime" label="时间" width="180" sortable="custom">
             <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
           </el-table-column>
           <el-table-column label="操作" width="150" fixed="right">
@@ -82,17 +90,25 @@
           <el-button type="primary" @click="onSessionSearch">查询</el-button>
         </div>
 
-        <el-table :data="sessionList" v-loading="loadingSession" stripe border height="520">
-          <el-table-column prop="id" label="ID" width="70" />
-          <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="userType" label="类型" width="90" />
-          <el-table-column prop="userId" label="学号" width="130" />
-          <el-table-column prop="adminId" label="管理员ID" width="100" />
+        <el-table
+          :data="sessionList"
+          v-loading="loadingSession"
+          stripe
+          border
+          height="520"
+          :default-sort="{ prop: 'id', order: 'ascending' }"
+          @sort-change="onSessionSortChange"
+        >
+          <el-table-column prop="id" label="ID" width="80" sortable="custom" />
+          <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip sortable="custom" />
+          <el-table-column prop="userType" label="类型" width="100" sortable="custom" />
+          <el-table-column prop="userId" label="学号" width="130" sortable="custom" />
+          <el-table-column prop="adminId" label="管理员ID" width="110" sortable="custom" />
           <el-table-column prop="sessionKey" label="SessionKey" min-width="180" show-overflow-tooltip />
-          <el-table-column prop="lastMessageAt" label="最后消息" width="170">
+          <el-table-column prop="lastMessageAt" label="最后消息" width="180" sortable="custom">
             <template #default="{ row }">{{ formatTime(row.lastMessageAt) }}</template>
           </el-table-column>
-          <el-table-column prop="createdAt" label="创建时间" width="170">
+          <el-table-column prop="createdAt" label="创建时间" width="180" sortable="custom">
             <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
           </el-table-column>
           <el-table-column label="操作" width="200" fixed="right">
@@ -187,6 +203,8 @@ const msgFilter = ref({ userType: '', year: null, keyword: '', sessionId: null }
 const sessionFilter = ref({ userType: '', keyword: '' })
 const msgPage = ref({ page: 1, size: 10, total: 0 })
 const sessionPage = ref({ page: 1, size: 10, total: 0 })
+const msgSort = ref({ sortBy: 'id', sortOrder: 'asc' })
+const sessionSort = ref({ sortBy: 'id', sortOrder: 'asc' })
 
 const msgDialogVisible = ref(false)
 const savingMsg = ref(false)
@@ -218,6 +236,32 @@ const onSessionSearch = () => {
   loadSessions()
 }
 
+const onMsgSortChange = ({ prop, order }) => {
+  if (!order) {
+    msgSort.value = { sortBy: 'id', sortOrder: 'asc' }
+  } else {
+    msgSort.value = {
+      sortBy: prop || 'id',
+      sortOrder: order === 'ascending' ? 'asc' : 'desc'
+    }
+  }
+  msgPage.value.page = 1
+  loadMessages()
+}
+
+const onSessionSortChange = ({ prop, order }) => {
+  if (!order) {
+    sessionSort.value = { sortBy: 'id', sortOrder: 'asc' }
+  } else {
+    sessionSort.value = {
+      sortBy: prop || 'id',
+      sortOrder: order === 'ascending' ? 'asc' : 'desc'
+    }
+  }
+  sessionPage.value.page = 1
+  loadSessions()
+}
+
 const loadMessages = async () => {
   loadingMsg.value = true
   try {
@@ -227,7 +271,9 @@ const loadMessages = async () => {
       keyword: msgFilter.value.keyword || undefined,
       sessionId: msgFilter.value.sessionId || undefined,
       page: msgPage.value.page,
-      size: msgPage.value.size
+      size: msgPage.value.size,
+      sortBy: msgSort.value.sortBy,
+      sortOrder: msgSort.value.sortOrder
     })
     if (res.code === 200) {
       const data = res.data || {}
@@ -252,7 +298,9 @@ const loadSessions = async () => {
       userType: sessionFilter.value.userType || undefined,
       keyword: sessionFilter.value.keyword || undefined,
       page: sessionPage.value.page,
-      size: sessionPage.value.size
+      size: sessionPage.value.size,
+      sortBy: sessionSort.value.sortBy,
+      sortOrder: sessionSort.value.sortOrder
     })
     if (res.code === 200) {
       const data = res.data || {}

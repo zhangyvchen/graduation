@@ -1,7 +1,6 @@
 import { ref, computed, watch } from 'vue'
 import { useAuth } from '../stores/auth'
 import { streamAIChat } from '../utils/aiStreamChat'
-import { formatAIContent } from '../utils/formatAIContent'
 import { compressImageFile } from '../utils/imageCompress'
 import {
   getChatHistory,
@@ -91,7 +90,6 @@ function buildMessage({ id, role, content, time, images }) {
     id,
     role,
     content: content || '',
-    html: formatAIContent(content || ''),
     images: images || [],
     time: time || formatTime()
   }
@@ -164,8 +162,6 @@ export function useAiChat(options = {}) {
 
   let lastIdentity = { ...identity.value }
   let roleSwitchHandling = false
-
-  const formatMessage = (content) => formatAIContent(content)
 
   const setAlive = (value) => {
     alive = value
@@ -480,7 +476,6 @@ export function useAiChat(options = {}) {
           const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
           if (aiMsgIndex !== -1) {
             messages.value[aiMsgIndex].content += chunk
-            messages.value[aiMsgIndex].html = formatAIContent(messages.value[aiMsgIndex].content)
             onAfterChunk?.(messages.value[aiMsgIndex])
           }
         },
@@ -490,7 +485,6 @@ export function useAiChat(options = {}) {
           const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
           if (aiMsgIndex !== -1) {
             messages.value[aiMsgIndex].content = tip
-            messages.value[aiMsgIndex].html = formatAIContent(tip)
           }
         }
       })
@@ -504,7 +498,6 @@ export function useAiChat(options = {}) {
         if (aiMsgIndex !== -1 && !messages.value[aiMsgIndex].content) {
           const tip = '网络连接异常，请稍后重试。'
           messages.value[aiMsgIndex].content = tip
-          messages.value[aiMsgIndex].html = formatAIContent(tip)
         }
         onError?.(error)
       }
@@ -625,7 +618,6 @@ export function useAiChat(options = {}) {
     selectedModel,
     visionEnabled,
     currentModelMeta,
-    formatMessage,
     formatTime,
     setAlive,
     initIdentityTracking,
