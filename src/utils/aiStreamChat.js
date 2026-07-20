@@ -36,9 +36,11 @@ export async function streamAIChat({
   year,
   messageType = 'general',
   userRole = 'guest',
+  sessionId,
   signal,
   onChunk,
-  onBlocked
+  onBlocked,
+  onStatus
 }) {
   const response = await fetch('/api/ai/chat/stream', {
     method: 'POST',
@@ -51,7 +53,8 @@ export async function streamAIChat({
       content,
       year,
       messageType,
-      userRole
+      userRole,
+      sessionId: sessionId || undefined
     }),
     signal
   })
@@ -63,6 +66,31 @@ export async function streamAIChat({
   const reader = response.body.getReader()
   const decoder = new TextDecoder('utf-8')
   let buffer = ''
+
+  const handleEvent = (event, data) => {
+    if (!data || data.includes('[DONE]')) return false
+
+    if (event === 'blocked') {
+      let payload = { message: data }
+      try {
+        payload = JSON.parse(data)
+      } catch (_) {
+        // ignore
+      }
+      onBlocked?.(payload)
+      return true
+    }
+
+    if (event === 'status') {
+      onStatus?.(data)
+      return false
+    }
+
+    if (event !== 'error') {
+      onChunk?.(data)
+    }
+    return false
+  }
 
   while (true) {
     const { done, value } = await reader.read()
@@ -76,42 +104,12 @@ export async function streamAIChat({
       buffer = buffer.slice(eventEnd + 2)
 
       const { event, data } = parseSSEEvent(eventText)
-      if (!data || data.includes('[DONE]')) {
-        eventEnd = buffer.indexOf('\n\n')
-        continue
-      }
-
-      if (event === 'blocked') {
-        let payload = { message: data }
-        try {
-          payload = JSON.parse(data)
-        } catch (_) {
-          // ignore
-        }
-        onBlocked?.(payload)
-        return
-      }
-
-      if (event !== 'error') {
-        onChunk?.(data)
-      }
+      if (handleEvent(event, data)) return
 
       eventEnd = buffer.indexOf('\n\n')
     }
   }
 
   const remaining = parseSSEEvent(buffer)
-  if (remaining.data && !remaining.data.includes('[DONE]')) {
-    if (remaining.event === 'blocked') {
-      let payload = { message: remaining.data }
-      try {
-        payload = JSON.parse(remaining.data)
-      } catch (_) {
-        // ignore
-      }
-      onBlocked?.(payload)
-      return
-    }
-    onChunk?.(remaining.data)
-  }
+  handleEvent(remaining.event, remaining.data)
 }
