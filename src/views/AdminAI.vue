@@ -48,6 +48,26 @@
               <el-tag size="small" type="success" effect="dark">
                 <el-icon><Monitor /></el-icon> 在线
               </el-tag>
+              <el-select
+                :model-value="selectedModel"
+                placeholder="选择模型"
+                size="small"
+                style="width: 200px; margin-left: 8px"
+                :disabled="isStreaming"
+                @change="setSelectedModel"
+              >
+                <el-option
+                  v-for="m in modelOptions"
+                  :key="m.id"
+                  :label="m.label"
+                  :value="m.id"
+                >
+                  <span>{{ m.label }}</span>
+                  <span style="float: right; color: #909399; font-size: 12px">
+                    {{ m.vision ? '识图' : '文本' }}
+                  </span>
+                </el-option>
+              </el-select>
             </div>
           </div>
         </div>
@@ -71,7 +91,7 @@
                 </svg>
               </div>
               <div class="message-content">
-                <div class="message-text" v-html="msg.html || formatMessage(msg.content)"></div>
+                <ChatRichBody :content="msg.content" :images="msg.images" />
                 <div class="message-time">{{ msg.time }}</div>
               </div>
             </div>
@@ -86,10 +106,33 @@
           </div>
         </div>
 
+        <div v-if="pendingImages.length" class="pending-images">
+          <div v-for="(img, idx) in pendingImages" :key="idx" class="pending-item">
+            <img :src="img.previewUrl" alt="待发送" />
+            <button type="button" class="pending-remove" @click="removePendingImage(idx)">×</button>
+          </div>
+        </div>
+
         <div class="chat-input">
+          <input
+            ref="imageInputRef"
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            @change="onPickImages"
+          />
+          <el-button
+            size="large"
+            :disabled="isStreaming || !visionEnabled || pendingImages.length >= 4"
+            @click="imageInputRef?.click()"
+            :title="visionEnabled ? '上传图片（最多4张）' : '当前模型不支持识图，请切换到 GLM-4.6V'"
+          >
+            <el-icon><Picture /></el-icon>
+          </el-button>
           <el-input
             v-model="inputMessage"
-            placeholder="输入您的问题，例如：2024届就业率趋势分析"
+            :placeholder="visionEnabled ? '输入问题，或上传图片让 AI 解析（支持返回图表）' : '纯文本模式：输入问题（当前模型不支持识图）'"
             @keyup.enter="handleSend"
             size="large"
             :disabled="isStreaming"
@@ -99,7 +142,7 @@
             v-if="!isStreaming"
             type="primary"
             @click="handleSend"
-            :disabled="!inputMessage.trim()"
+            :disabled="!inputMessage.trim() && !pendingImages.length"
           >
             <el-icon><Send /></el-icon> 发送
           </el-button>
@@ -174,6 +217,7 @@
             <p>• 左侧可新建/切换多个会话，互不干扰</p>
             <p>• 使用自然语言提问，如"2024届就业率如何？"</p>
             <p>• 可以要求生成特定类型的分析报告</p>
+            <p>• 可上传图片（表格/截图），AI 会解析；需要时会返回可交互图表</p>
             <p>• 历史记录请到「AI 历史」表格页管理</p>
           </div>
         </div>
@@ -201,6 +245,7 @@ import { ref, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import { useAiChat } from '../composables/useAiChat'
+import ChatRichBody from '../components/ChatRichBody.vue'
 
 const {
   Delete,
@@ -214,11 +259,13 @@ const {
   TrendCharts,
   Document,
   InfoFilled,
-  History
+  History,
+  Picture
 } = ElementPlusIconsVue
 
 const aiAvatarHeaderUrl = '/static/AI_2.png'
 const aiAvatarMsgUrl = '/static/AI_3.png'
+const imageInputRef = ref(null)
 
 const {
   messages,
@@ -230,7 +277,11 @@ const {
   sessions,
   currentSessionKey,
   sessionsLoading,
-  formatMessage,
+  pendingImages,
+  modelOptions,
+  selectedModel,
+  visionEnabled,
+  setSelectedModel,
   initIdentityTracking,
   loadChatHistory,
   createSession,
@@ -238,11 +289,13 @@ const {
   renameSession,
   removeSession,
   sendMessage,
+  addImages,
+  removePendingImage,
   stopGeneration: stopStreaming,
   clearMemory
 } = useAiChat({
   welcomeMessage:
-    '您好！我是毕业数据报告系统的 AI 助手。我可以帮您分析毕业数据、生成统计报告、预测就业趋势等。请问有什么我可以帮助您的？',
+    '您好！我是毕业数据报告系统的 AI 助手。我可以帮您分析毕业数据、生成统计报告、预测就业趋势；也支持上传图片解析，并用图表展示结果。请问有什么我可以帮助您的？',
   onError: () => ElMessage.error('AI聊天失败，请稍后重试'),
   onRiskBlocked: ({ riskWord, message }) => {
     ElMessageBox.alert(
@@ -256,6 +309,13 @@ const {
     )
   }
 })
+
+const onPickImages = async (e) => {
+  const files = e.target?.files
+  if (!files?.length) return
+  await addImages(files)
+  e.target.value = ''
+}
 
 const handleNewSession = async () => {
   try {
@@ -311,7 +371,8 @@ const quickQuestions = [
 ]
 
 const handleSend = async () => {
-  if (!inputMessage.value.trim() || isStreaming.value) return
+  if (isStreaming.value) return
+  if (!inputMessage.value.trim() && !pendingImages.value.length) return
   const text = inputMessage.value
   inputMessage.value = ''
   await sendMessage(text, currentYear.value)
@@ -552,6 +613,9 @@ onMounted(async () => {
 .ai-status {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
 }
 
 .chat-body {
@@ -707,6 +771,44 @@ onMounted(async () => {
   background: #f8f9fa;
   border-top: 1px solid #e9ecef;
   flex-shrink: 0;
+}
+
+.pending-images {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 16px 0;
+  background: #f8f9fa;
+}
+
+.pending-item {
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+
+.pending-item img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e4e7ed;
+}
+
+.pending-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: #f56c6c;
+  color: #fff;
+  cursor: pointer;
+  line-height: 18px;
+  font-size: 12px;
+  padding: 0;
 }
 
 .chat-input :deep(.el-input) {
