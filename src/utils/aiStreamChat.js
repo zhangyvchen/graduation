@@ -37,6 +37,8 @@ export async function streamAIChat({
   messageType = 'general',
   userRole = 'guest',
   sessionId,
+  images,
+  model,
   signal,
   onChunk,
   onBlocked,
@@ -54,7 +56,14 @@ export async function streamAIChat({
       year,
       messageType,
       userRole,
-      sessionId: sessionId || undefined
+      sessionId: sessionId || undefined,
+      model: model || undefined,
+      images: images?.length
+        ? images.map(img => ({
+            mimeType: img.mimeType || 'image/jpeg',
+            base64: img.base64
+          }))
+        : undefined
     }),
     signal
   })
@@ -84,6 +93,11 @@ export async function streamAIChat({
     if (event === 'status') {
       onStatus?.(data)
       return false
+    }
+
+    if (event === 'error') {
+      onBlocked?.({ message: data || 'AI 服务异常' })
+      return true
     }
 
     if (event !== 'error') {

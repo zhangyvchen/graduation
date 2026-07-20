@@ -31,6 +31,19 @@
             </div>
           </div>
           <div class="header-actions">
+            <select
+              class="model-select"
+              :value="selectedModel"
+              :disabled="isStreaming"
+              title="切换模型"
+              @click.stop
+              @mousedown.stop
+              @change="setSelectedModel($event.target.value)"
+            >
+              <option v-for="m in modelOptions" :key="m.id" :value="m.id">
+                {{ m.label }}
+              </option>
+            </select>
             <button class="header-icon-btn" title="新对话" @click.stop="handleNewChat">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -64,7 +77,7 @@
               </svg>
             </div>
             <div class="message-content">
-              <div class="message-text" v-html="msg.html || formatMessageContent(msg.content)"></div>
+              <ChatRichBody :content="msg.content" :images="msg.images" />
               <span class="message-time">{{ msg.time || formatTime() }}</span>
             </div>
           </div>
@@ -79,12 +92,40 @@
             </div>
           </div>
         </div>
+
+        <div v-if="pendingImages.length" class="float-pending-images">
+          <div v-for="(img, idx) in pendingImages" :key="idx" class="float-pending-item">
+            <img :src="img.previewUrl" alt="" />
+            <button type="button" @click="removePendingImage(idx)">×</button>
+          </div>
+        </div>
         
         <div class="chat-input">
           <div class="input-wrapper">
+            <input
+              ref="floatImageInput"
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              @change="onFloatPickImages"
+            />
+            <button
+              class="img-btn"
+              type="button"
+              :title="visionEnabled ? '上传图片' : '当前模型不支持识图'"
+              :disabled="isStreaming || !visionEnabled || pendingImages.length >= 4"
+              @click="floatImageInput?.click()"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+            </button>
             <input 
               v-model="inputText" 
-              placeholder="输入问题..." 
+              :placeholder="visionEnabled ? '输入问题或上传图片...' : '纯文本模式，输入问题...'" 
               @keyup.enter="sendMessage"
               class="input-field"
               :disabled="isStreaming"
@@ -93,7 +134,7 @@
               v-if="!isStreaming"
               class="send-btn"
               @click="sendMessage"
-              :disabled="!inputText.trim()"
+              :disabled="!inputText.trim() && !pendingImages.length"
               title="发送"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -133,6 +174,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAiChat } from '../composables/useAiChat'
+import ChatRichBody from './ChatRichBody.vue'
 
 const isOpen = ref(false)
 const rootRef = ref(null)
@@ -140,6 +182,7 @@ const panelRef = ref(null)
 const isDragging = ref(false)
 const unreadCount = ref(0)
 const messagesContainer = ref(null)
+const floatImageInput = ref(null)
 let resizeMode = null // 仅右下角手柄: 'corner'
 
 if (window.__aiFloatButtonMounted__) {
@@ -163,12 +206,18 @@ const {
   inputText,
   isLoading,
   isStreaming,
-  formatMessage: formatMessageContent,
   formatTime,
+  pendingImages,
+  modelOptions,
+  selectedModel,
+  visionEnabled,
+  setSelectedModel,
   setAlive,
   initIdentityTracking,
   createSession,
   sendMessage: sendChatMessage,
+  addImages,
+  removePendingImage,
   stopGeneration,
   clearMemory: clearChatMemory
 } = useAiChat({
@@ -177,6 +226,13 @@ const {
     ElMessage.warning(message || '检测到敏感内容，已拦截并记录')
   }
 })
+
+const onFloatPickImages = async (e) => {
+  const files = e.target?.files
+  if (!files?.length) return
+  await addImages(files)
+  e.target.value = ''
+}
 
 const aiAvatarUrl = ref('/static/AI_1.png')
 const aiAvatarHeaderUrl = ref('/static/AI_2.png')
@@ -500,7 +556,8 @@ const loadPosition = () => {
 }
 
 const sendMessage = async () => {
-  if (!inputText.value.trim() || isStreaming.value) return
+  if (isStreaming.value) return
+  if (!inputText.value.trim() && !pendingImages.value.length) return
   const text = inputText.value
   inputText.value = ''
   scrollToBottom()
@@ -781,7 +838,26 @@ onUnmounted(() => {
 
 .header-actions {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
+}
+
+.model-select {
+  max-width: 128px;
+  height: 28px;
+  border: none;
+  border-radius: 14px;
+  padding: 0 8px;
+  font-size: 11px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+  outline: none;
+}
+
+.model-select option {
+  color: #303133;
+  background: #fff;
 }
 
 .header-icon-btn {
@@ -1010,6 +1086,62 @@ onUnmounted(() => {
 .input-wrapper {
   display: flex;
   gap: 10px;
+  align-items: center;
+}
+
+.img-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #667eea;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.img-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.float-pending-images {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 12px 0;
+}
+
+.float-pending-item {
+  position: relative;
+  width: 48px;
+  height: 48px;
+}
+
+.float-pending-item img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.float-pending-item button {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: #f56c6c;
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
+  padding: 0;
+  cursor: pointer;
 }
 
 .input-field {

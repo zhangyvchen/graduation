@@ -2,17 +2,21 @@ import { ref, computed, watch } from 'vue'
 import { useAuth } from '../stores/auth'
 import { streamAIChat } from '../utils/aiStreamChat'
 import { formatAIContent } from '../utils/formatAIContent'
+import { compressImageFile } from '../utils/imageCompress'
 import {
   getChatHistory,
   clearAiMemory,
   listAiSessions,
   createAiSession,
   renameAiSession,
-  deleteAiSession
+  deleteAiSession,
+  getAiModels
 } from '../api/admin'
 
 const DEFAULT_WELCOME =
   '您好！我是毕业数据报告系统的 AI 助手，有什么可以帮您的？'
+
+const MODEL_STORAGE_KEY = 'aiSelectedModel'
 
 const ROLE_SWITCH_RESET_TEXT = '检测到身份已切换，已为您清空上一角色的对话记忆。'
 
@@ -82,12 +86,13 @@ function formatTime() {
   })
 }
 
-function buildMessage({ id, role, content, time }) {
+function buildMessage({ id, role, content, time, images }) {
   return {
     id,
     role,
     content: content || '',
     html: formatAIContent(content || ''),
+    images: images || [],
     time: time || formatTime()
   }
 }
@@ -135,6 +140,15 @@ export function useAiChat(options = {}) {
   const sessions = ref([])
   const currentSessionKey = ref(localStorage.getItem(sessionStorageKey(resolveChatIdentity(authState))) || '')
   const sessionsLoading = ref(false)
+  const pendingImages = ref([])
+  const modelOptions = ref([])
+  const selectedModel = ref(localStorage.getItem(MODEL_STORAGE_KEY) || '')
+  const visionEnabled = computed(() => {
+    const hit = modelOptions.value.find(m => m.id === selectedModel.value)
+    if (hit) return !!hit.vision
+    // 列表未加载时：默认模型名含 v 视为识图
+    return !selectedModel.value || /v|vision/i.test(selectedModel.value)
+  })
 
   let abortController = null
   let alive = true
@@ -143,6 +157,9 @@ export function useAiChat(options = {}) {
   const identity = computed(() => resolveChatIdentity(authState))
   const currentSession = computed(() =>
     sessions.value.find(s => s.sessionKey === currentSessionKey.value) || null
+  )
+  const currentModelMeta = computed(() =>
+    modelOptions.value.find(m => m.id === selectedModel.value) || null
   )
 
   let lastIdentity = { ...identity.value }
@@ -394,7 +411,16 @@ export function useAiChat(options = {}) {
 
   const sendMessage = async (rawContent, yearOverride) => {
     const content = (rawContent ?? inputText.value).trim()
-    if (!content || isStreaming.value) return
+    const imagesToSend = [...pendingImages.value]
+    if ((!content && imagesToSend.length === 0) || isStreaming.value) return
+
+    if (imagesToSend.length > 0 && !visionEnabled.value) {
+      onError?.(new Error('当前模型不支持识图'))
+      onRiskBlocked?.({
+        message: '当前模型不支持识图，请切换到「GLM-4.6V」后再上传图片'
+      })
+      return
+    }
 
     if (!currentSessionKey.value) {
       await loadSessions()
@@ -414,11 +440,17 @@ export function useAiChat(options = {}) {
     if (rawContent == null) {
       inputText.value = ''
     }
+    pendingImages.value = []
 
+    const displayText = content || '请解析这些图片'
     messages.value.push(buildMessage({
       id: Date.now(),
       role: 'user',
-      content
+      content: displayText,
+      images: imagesToSend.map(img => ({
+        previewUrl: img.previewUrl,
+        mimeType: img.mimeType
+      }))
     }))
 
     const aiMessageId = Date.now() + 1
@@ -428,17 +460,19 @@ export function useAiChat(options = {}) {
       content: ''
     }))
 
-    patchSessionTitleLocally(sessionId, content)
+    patchSessionTitleLocally(sessionId, displayText)
 
     try {
       await streamAIChat({
-        content,
+        content: displayText,
         userId: id.userId,
         adminId: id.adminId,
         year,
         messageType: 'general',
         userRole: id.userRole,
         sessionId,
+        images: imagesToSend,
+        model: selectedModel.value || undefined,
         signal: abortController.signal,
         onChunk: (chunk) => {
           if (!alive) return
@@ -481,6 +515,76 @@ export function useAiChat(options = {}) {
     }
   }
 
+  const addImages = async (fileList) => {
+    if (!visionEnabled.value) {
+      onRiskBlocked?.({
+        message: '当前模型不支持识图，请先切换到「GLM-4.6V（识图）」'
+      })
+      return
+    }
+    const files = Array.from(fileList || []).filter(f => f.type?.startsWith('image/'))
+    if (!files.length) return
+    const room = Math.max(0, 4 - pendingImages.value.length)
+    const selected = files.slice(0, room)
+    for (const file of selected) {
+      try {
+        const compressed = await compressImageFile(file)
+        pendingImages.value.push(compressed)
+      } catch (e) {
+        console.warn('图片压缩失败:', e)
+        onError?.(e)
+      }
+    }
+  }
+
+  const setSelectedModel = (modelId) => {
+    selectedModel.value = modelId || ''
+    if (modelId) {
+      localStorage.setItem(MODEL_STORAGE_KEY, modelId)
+    } else {
+      localStorage.removeItem(MODEL_STORAGE_KEY)
+    }
+    if (!visionEnabled.value && pendingImages.value.length) {
+      pendingImages.value = []
+    }
+  }
+
+  const loadModels = async () => {
+    try {
+      const res = await getAiModels()
+      const rows = Array.isArray(res?.data) ? res.data : []
+      modelOptions.value = rows.map(m => ({
+        id: m.id,
+        label: m.label || m.id,
+        vision: !!m.vision,
+        description: m.description || '',
+        isDefault: !!m.default
+      }))
+      const def = res?.defaultModel
+        || modelOptions.value.find(m => m.isDefault)?.id
+        || modelOptions.value[0]?.id
+        || 'glm-4.6v'
+      if (!selectedModel.value || !modelOptions.value.some(m => m.id === selectedModel.value)) {
+        setSelectedModel(def)
+      }
+    } catch (e) {
+      console.warn('加载模型列表失败，使用本地默认', e)
+      modelOptions.value = [
+        { id: 'glm-4.6v', label: 'GLM-4.6V（识图+图表）', vision: true },
+        { id: 'glm-4.5-air', label: 'GLM-4.5-Air（纯文本）', vision: false }
+      ]
+      if (!selectedModel.value) setSelectedModel('glm-4.6v')
+    }
+  }
+
+  const removePendingImage = (index) => {
+    pendingImages.value.splice(index, 1)
+  }
+
+  const clearPendingImages = () => {
+    pendingImages.value = []
+  }
+
   const clearMemory = async ({ resetText, deleteDb = false } = {}) => {
     const id = identity.value
     stopGeneration()
@@ -500,6 +604,7 @@ export function useAiChat(options = {}) {
     lastIdentity = { ...identity.value }
     const saved = localStorage.getItem(sessionStorageKey(identity.value))
     if (saved) currentSessionKey.value = saved
+    await loadModels()
     await loadSessions()
   }
 
@@ -515,10 +620,17 @@ export function useAiChat(options = {}) {
     currentSessionKey,
     currentSession,
     sessionsLoading,
+    pendingImages,
+    modelOptions,
+    selectedModel,
+    visionEnabled,
+    currentModelMeta,
     formatMessage,
     formatTime,
     setAlive,
     initIdentityTracking,
+    loadModels,
+    setSelectedModel,
     loadChatHistory,
     loadSessions,
     createSession,
@@ -526,6 +638,9 @@ export function useAiChat(options = {}) {
     renameSession,
     removeSession,
     sendMessage,
+    addImages,
+    removePendingImage,
+    clearPendingImages,
     stopGeneration,
     clearMemory
   }
