@@ -140,14 +140,14 @@ router.beforeEach((to, from, next) => {
   const auth = useAuth()
   const currentRole = auth.state.role?.toUpperCase()
 
-  if (to.path === '/admin/login' || to.path === '/student/login') {
+  if (to.path === '/admin/login' || to.path === '/login') {
     next()
     return
   }
 
-  if (to.path.startsWith('/student/') && to.path !== '/student/login') {
+  if (to.path.startsWith('/student/') && to.path !== '/login') {
     if (!auth.state.isLoggedIn || currentRole !== 'STUDENT') {
-      next('/student/login')
+      next('/login')
       return
     }
   }

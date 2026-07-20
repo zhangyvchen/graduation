@@ -203,7 +203,7 @@ const handleCommand = async (cmd) => {
     localStorage.removeItem('student_token')
     localStorage.removeItem('student_info')
     auth.logout()
-    router.push('/student/login')
+    router.push('/login')
   }
 }
 

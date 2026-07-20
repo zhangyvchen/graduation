@@ -2,12 +2,6 @@ import Layout from '@/views/student/Layout.vue'
 
 export default [
   {
-    path: '/student/login',
-    name: 'StudentLogin',
-    component: () => import('@/views/student/Login.vue'),
-    meta: { title: '学生登录' }
-  },
-  {
     path: '/student',
     component: Layout,
     redirect: '/student/profile',
