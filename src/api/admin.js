@@ -60,6 +60,13 @@ export function aiChat(data) {
   })
 }
 
+export function getAiModels() {
+  return request({
+    url: '/ai/models',
+    method: 'get'
+  })
+}
+
 export function getChatHistory(userId, options = {}) {
   const { userType = 'student', adminId, sessionId } = options
   return request({
