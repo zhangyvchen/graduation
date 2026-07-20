@@ -23,30 +23,37 @@
           <el-button type="primary" @click="loadAbnormal">查询</el-button>
         </div>
 
-        <el-table :data="abnormalList" v-loading="loadingAbnormal" stripe border>
-          <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="userType" label="类型" width="90">
+        <el-table
+          :data="abnormalList"
+          v-loading="loadingAbnormal"
+          stripe
+          border
+          :default-sort="{ prop: 'id', order: 'ascending' }"
+          @sort-change="onAbnormalSortChange"
+        >
+          <el-table-column prop="id" label="ID" width="90" sortable="custom" />
+          <el-table-column prop="userType" label="类型" width="100" sortable="custom">
             <template #default="{ row }">
               <el-tag size="small">{{ row.userType || '-' }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="userId" label="学号" width="140" />
-          <el-table-column prop="adminId" label="管理员ID" width="100" />
-          <el-table-column prop="hitType" label="拦截方式" width="110">
+          <el-table-column prop="userId" label="学号" width="140" sortable="custom" />
+          <el-table-column prop="adminId" label="管理员ID" width="110" sortable="custom" />
+          <el-table-column prop="hitType" label="拦截方式" width="120" sortable="custom">
             <template #default="{ row }">
               <el-tag :type="row.hitType === 'semantic' ? 'warning' : 'danger'" size="small">
                 {{ row.hitType === 'semantic' ? '语义审核' : '关键词' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="riskWord" label="命中词" width="120">
+          <el-table-column prop="riskWord" label="命中词" width="130" sortable="custom">
             <template #default="{ row }">
               <el-tag type="danger" size="small">{{ row.riskWord || '-' }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column prop="content" label="原始内容" min-width="200" show-overflow-tooltip />
           <el-table-column prop="reason" label="原因" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="createTime" label="时间" width="180">
+          <el-table-column prop="createTime" label="时间" width="180" sortable="custom">
             <template #default="{ row }">
               {{ formatTime(row.createTime) }}
             </template>
@@ -74,11 +81,18 @@
           title="说明：大词库来自开源 Sensitive-lexicon（classpath:sensitive/*.txt），不会全部写入数据库。下方表格仅管理你自定义补充的词。"
         />
 
-        <el-table :data="wordList" v-loading="loadingWords" stripe border>
-          <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="word" label="危险词" width="160" />
-          <el-table-column prop="category" label="分类" width="120" />
-          <el-table-column prop="enabled" label="状态" width="100">
+        <el-table
+          :data="wordList"
+          v-loading="loadingWords"
+          stripe
+          border
+          :default-sort="{ prop: 'id', order: 'ascending' }"
+          @sort-change="onWordSortChange"
+        >
+          <el-table-column prop="id" label="ID" width="90" sortable="custom" />
+          <el-table-column prop="word" label="危险词" width="160" sortable="custom" />
+          <el-table-column prop="category" label="分类" width="120" sortable="custom" />
+          <el-table-column prop="enabled" label="状态" width="110" sortable="custom">
             <template #default="{ row }">
               <el-switch
                 v-model="row.enabled"
@@ -87,7 +101,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
-          <el-table-column prop="createdBy" label="创建人" width="100" />
+          <el-table-column prop="createdBy" label="创建人" width="110" sortable="custom" />
           <el-table-column label="操作" width="160" fixed="right">
             <template #default="{ row }">
               <el-button link type="primary" @click="openWordDialog(row)">编辑</el-button>
@@ -152,6 +166,8 @@ const abnormalList = ref([])
 const wordList = ref([])
 const filterUserType = ref('')
 const keyword = ref('')
+const abnormalSort = ref({ sortBy: 'id', sortOrder: 'asc' })
+const wordSort = ref({ sortBy: 'id', sortOrder: 'asc' })
 
 const wordDialogVisible = ref(false)
 const savingWord = ref(false)
@@ -168,12 +184,38 @@ const formatTime = (val) => {
   return new Date(val).toLocaleString('zh-CN')
 }
 
+const onAbnormalSortChange = ({ prop, order }) => {
+  if (!order) {
+    abnormalSort.value = { sortBy: 'id', sortOrder: 'asc' }
+  } else {
+    abnormalSort.value = {
+      sortBy: prop || 'id',
+      sortOrder: order === 'ascending' ? 'asc' : 'desc'
+    }
+  }
+  loadAbnormal()
+}
+
+const onWordSortChange = ({ prop, order }) => {
+  if (!order) {
+    wordSort.value = { sortBy: 'id', sortOrder: 'asc' }
+  } else {
+    wordSort.value = {
+      sortBy: prop || 'id',
+      sortOrder: order === 'ascending' ? 'asc' : 'desc'
+    }
+  }
+  loadWords()
+}
+
 const loadAbnormal = async () => {
   loadingAbnormal.value = true
   try {
     const res = await getAbnormalChats({
       userType: filterUserType.value || undefined,
-      keyword: keyword.value || undefined
+      keyword: keyword.value || undefined,
+      sortBy: abnormalSort.value.sortBy,
+      sortOrder: abnormalSort.value.sortOrder
     })
     if (res.code === 200) {
       abnormalList.value = res.data || []
@@ -205,7 +247,10 @@ const removeAbnormal = async (row) => {
 const loadWords = async () => {
   loadingWords.value = true
   try {
-    const res = await getRiskWords()
+    const res = await getRiskWords({
+      sortBy: wordSort.value.sortBy,
+      sortOrder: wordSort.value.sortOrder
+    })
     if (res.code === 200) {
       wordList.value = (res.data || []).map(item => ({
         ...item,

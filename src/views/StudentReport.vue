@@ -10,6 +10,22 @@
         <p class="subtitle">学号：{{ studentInfo.studentId }} | {{ studentInfo.className }}</p>
       </div>
       <div class="header-actions">
+        <el-button
+          v-if="hasFutureAdviceSection"
+          type="success"
+          plain
+          :loading="adviceLoading"
+          @click="generateFutureAdvice"
+        >
+          AI 一键生成未来建议
+        </el-button>
+        <el-button
+          v-if="aiAdvice"
+          plain
+          @click="resetFutureAdvice"
+        >
+          恢复默认
+        </el-button>
         <el-dropdown @command="handleDownload">
           <el-button type="primary">
             📥 下载报告 <el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -110,9 +126,11 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElLoading } from 'element-plus'
 import { getStudentReportData } from '../api/student'
+import { generateStudentFutureAdvice, getStudentFutureAdvice, deleteStudentFutureAdvice } from '../api/admin'
 import { useAuth } from '../stores/auth'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
+import { ArrowDown } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -130,8 +148,26 @@ const templates = ref([])
 const templateId = ref(null)
 const selectedTemplate = ref(null)
 const reportCardRef = ref(null)
+const aiAdvice = ref(null)
+const adviceLoading = ref(false)
 
 const dest = computed(() => destinationData.value.length > 0 ? destinationData.value[0] : null)
+
+const hasFutureAdviceSection = computed(() =>
+  !!selectedTemplate.value?.sections?.includes('未来建议')
+)
+
+const defaultFutureAdviceItems = () => ([
+  { label: '职业发展建议', value: '根据您的专业背景，建议关注相关行业动态，持续提升专业技能。' },
+  { label: '继续深造建议', value: '如有深造意向，建议尽早准备相关考试和材料。' },
+  { label: '就业指导建议', value: '建议充分利用学校就业指导中心资源，完善求职材料。' },
+  { label: '个人发展建议', value: '保持学习热情，积极拓展人脉，勇于尝试新的机会。' }
+])
+
+const futureAdviceItems = computed(() => {
+  if (aiAdvice.value?.items?.length) return aiAdvice.value.items
+  return defaultFutureAdviceItems()
+})
 
 const reportSections = computed(() => {
   if (!selectedTemplate.value) return []
@@ -241,12 +277,7 @@ const reportSections = computed(() => {
         sections.push({
           title: '未来建议',
           icon: '💡',
-          items: [
-            { label: '职业发展建议', value: '根据您的专业背景，建议关注相关行业动态，持续提升专业技能。' },
-            { label: '继续深造建议', value: '如有深造意向，建议尽早准备相关考试和材料。' },
-            { label: '就业指导建议', value: '建议充分利用学校就业指导中心资源，完善求职材料。' },
-            { label: '个人发展建议', value: '保持学习热情，积极拓展人脉，勇于尝试新的机会。' }
-          ]
+          items: futureAdviceItems.value
         })
         break
     }
@@ -340,6 +371,83 @@ const goBack = () => {
   router.push('/admin/student')
 }
 
+const buildAdviceProfile = () => ({
+  student: { ...studentInfo.value },
+  destinationData: destinationData.value || [],
+  learningProfiles: learningProfiles.value || [],
+  growthTrajectories: growthTrajectories.value || []
+})
+
+const generateFutureAdvice = async () => {
+  const studentId = studentInfo.value.studentId || route.params.studentId
+  if (!studentId) {
+    ElMessage.warning('无法获取学号')
+    return
+  }
+  adviceLoading.value = true
+  try {
+    const res = await generateStudentFutureAdvice({
+      studentId,
+      userRole: isAdmin.value ? 'admin' : 'student',
+      userId: isAdmin.value
+        ? (auth.state.user?.username || 'admin')
+        : studentId,
+      profile: buildAdviceProfile()
+    })
+    if (res.code === 200 && res.data) {
+      aiAdvice.value = res.data
+      ElMessage.success('已生成并保存到数据库')
+    } else {
+      ElMessage.error(res.message || '生成失败')
+    }
+  } catch (e) {
+    ElMessage.error(e?.message || '生成失败')
+  } finally {
+    adviceLoading.value = false
+  }
+}
+
+const resetFutureAdvice = async () => {
+  const studentId = studentInfo.value.studentId || route.params.studentId
+  if (!studentId) {
+    aiAdvice.value = null
+    return
+  }
+  try {
+    await deleteStudentFutureAdvice({
+      studentId,
+      userRole: isAdmin.value ? 'admin' : 'student',
+      userId: isAdmin.value
+        ? (auth.state.user?.username || 'admin')
+        : studentId
+    })
+    aiAdvice.value = null
+    ElMessage.success('已清除保存的建议，恢复默认文案')
+  } catch (e) {
+    ElMessage.error(e?.message || '清除失败')
+  }
+}
+
+const loadSavedFutureAdvice = async (studentId) => {
+  if (!studentId) return
+  try {
+    const res = await getStudentFutureAdvice({
+      studentId,
+      userRole: isAdmin.value ? 'admin' : 'student',
+      userId: isAdmin.value
+        ? (auth.state.user?.username || 'admin')
+        : studentId
+    })
+    if (res.code === 200 && res.data) {
+      aiAdvice.value = res.data
+    } else {
+      aiAdvice.value = null
+    }
+  } catch {
+    aiAdvice.value = null
+  }
+}
+
 const fetchReportData = async () => {
   try {
     let studentId = route.params.studentId
@@ -374,6 +482,8 @@ const fetchReportData = async () => {
       growthTrajectories.value = res.data.growthTrajectories || []
       learningProfiles.value = res.data.learningProfiles || []
       schoolName.value = res.data.schoolName || 'XX大学'
+      aiAdvice.value = null
+      await loadSavedFutureAdvice(studentInfo.value.studentId || studentId)
       
       templates.value = (res.data.templates || []).map(template => {
         let sections = []
