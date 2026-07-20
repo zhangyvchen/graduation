@@ -19,7 +19,7 @@ studentRequest.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('student_token')
       localStorage.removeItem('student_info')
-      window.location.href = '/student/login'
+      window.location.href = '/login'
     }
     return Promise.reject(error)
   }

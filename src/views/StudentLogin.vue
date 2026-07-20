@@ -156,12 +156,13 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '../stores/auth'
 import { studentLogin } from '../api/student'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuth()
 
 const loginForm = ref({
@@ -217,7 +218,14 @@ const handleLogin = async () => {
       auth.login(userInfo)
 
       ElMessage.success(`欢迎回来，${data.name}！`)
-      router.push('/student/profile')
+      
+      // 处理跳转逻辑：优先跳转 redirect 参数指定的页面
+      const redirect = route.query.redirect
+      if (redirect && typeof redirect === 'string') {
+        router.push(redirect)
+      } else {
+        router.push('/student/profile')
+      }
     } else {
       ElMessage.error(res.message || '登录失败')
     }

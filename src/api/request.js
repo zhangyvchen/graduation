@@ -27,21 +27,18 @@ request.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       const pathname = window.location.pathname
       // 已在登录页时不要重复跳转
-      if (pathname === '/admin/login' || pathname === '/student/login' || pathname === '/login') {
+      if (pathname === '/admin/login' || pathname === '/login') {
         return Promise.reject(error)
       }
-      // 区分学生端和管理端
       if (localStorage.getItem('student_token')) {
         localStorage.removeItem('student_token')
         localStorage.removeItem('student_info')
         if (pathname.startsWith('/student')) {
-          window.location.href = '/student/login'
+          window.location.href = '/login'
         }
       } else {
         if (pathname.startsWith('/admin')) {
           window.location.href = '/admin/login'
-        } else if (pathname.startsWith('/student')) {
-          window.location.href = '/student/login'
         } else {
           window.location.href = '/login'
         }

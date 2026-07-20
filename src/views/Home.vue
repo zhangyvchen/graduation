@@ -205,7 +205,7 @@ const goToVerify = () => {
   if (auth.state.isLoggedIn && auth.state.role?.toUpperCase() === 'STUDENT') {
     router.push('/student/verify')
   } else {
-    router.push('/student/login?redirect=/student/verify')
+    router.push('/login?redirect=/student/verify')
   }
 }
 

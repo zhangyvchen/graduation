@@ -82,7 +82,7 @@ const loading = ref(false)
 const reportForm = ref({ studentId: '', name: '' })
 
 const goToStudentLogin = () => {
-  router.push('/student/login?redirect=/report')
+  router.push('/login?redirect=/report')
 }
 
 const goToAdminLogin = () => {
