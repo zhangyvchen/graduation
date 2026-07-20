@@ -1,26 +1,29 @@
 /**
- * 解析 SSE 事件文本，保留换行结构
+ * 解析 SSE 事件文本，保留换行结构；支持 event 名
  */
 function parseSSEEvent(eventText) {
-  if (!eventText) return ''
+  if (!eventText) return { event: 'message', data: '' }
 
+  let eventName = 'message'
   const dataLines = []
   for (const line of eventText.split('\n')) {
-    if (line.startsWith('data:')) {
+    if (line.startsWith('event:')) {
+      eventName = line.slice(6).trim() || 'message'
+    } else if (line.startsWith('data:')) {
       const value = line.startsWith('data: ') ? line.slice(6) : line.slice(5)
       dataLines.push(value)
     }
   }
 
   if (dataLines.length > 0) {
-    return dataLines.join('\n')
+    return { event: eventName, data: dataLines.join('\n') }
   }
 
-  // 兼容非标准 SSE 纯文本
   const trimmed = eventText.trim()
-  return trimmed.startsWith('data:')
+  const data = trimmed.startsWith('data:')
     ? (trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed.slice(5))
     : trimmed
+  return { event: eventName, data }
 }
 
 /**
@@ -33,8 +36,11 @@ export async function streamAIChat({
   year,
   messageType = 'general',
   userRole = 'guest',
+  sessionId,
   signal,
-  onChunk
+  onChunk,
+  onBlocked,
+  onStatus
 }) {
   const response = await fetch('/api/ai/chat/stream', {
     method: 'POST',
@@ -47,7 +53,8 @@ export async function streamAIChat({
       content,
       year,
       messageType,
-      userRole
+      userRole,
+      sessionId: sessionId || undefined
     }),
     signal
   })
@@ -60,6 +67,31 @@ export async function streamAIChat({
   const decoder = new TextDecoder('utf-8')
   let buffer = ''
 
+  const handleEvent = (event, data) => {
+    if (!data || data.includes('[DONE]')) return false
+
+    if (event === 'blocked') {
+      let payload = { message: data }
+      try {
+        payload = JSON.parse(data)
+      } catch (_) {
+        // ignore
+      }
+      onBlocked?.(payload)
+      return true
+    }
+
+    if (event === 'status') {
+      onStatus?.(data)
+      return false
+    }
+
+    if (event !== 'error') {
+      onChunk?.(data)
+    }
+    return false
+  }
+
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
@@ -71,17 +103,13 @@ export async function streamAIChat({
       const eventText = buffer.slice(0, eventEnd)
       buffer = buffer.slice(eventEnd + 2)
 
-      const text = parseSSEEvent(eventText)
-      if (text && !text.includes('[DONE]')) {
-        onChunk(text)
-      }
+      const { event, data } = parseSSEEvent(eventText)
+      if (handleEvent(event, data)) return
 
       eventEnd = buffer.indexOf('\n\n')
     }
   }
 
   const remaining = parseSSEEvent(buffer)
-  if (remaining && !remaining.includes('[DONE]')) {
-    onChunk(remaining)
-  }
+  handleEvent(remaining.event, remaining.data)
 }

@@ -3,37 +3,51 @@
     <header class="content-header">
       <h2>AI 助手</h2>
       <div class="header-actions">
-        <el-select v-model="currentYear" @change="changeYear" size="small" style="width: 120px; margin-right: 10px;">
-          <el-option
-            v-for="year in availableYears"
-            :key="year"
-            :label="year + '年'"
-            :value="year"
-          />
-        </el-select>
-        <el-button size="small" @click="exportChatHistory">
-          <el-icon><Download /></el-icon> 导出记录
+        <el-button size="small" @click="$router.push('/admin/ai-history')">
+          <el-icon><Document /></el-icon> 历史管理
         </el-button>
         <el-button size="small" type="danger" @click="clearChatHistory">
-          <el-icon><Delete /></el-icon> 清除记忆
+          <el-icon><Delete /></el-icon> 清除本会话记忆
         </el-button>
       </div>
     </header>
 
     <div class="ai-container">
+      <aside class="session-sidebar">
+        <el-button type="primary" class="new-session-btn" @click="handleNewSession" :disabled="isStreaming">
+          + 新对话
+        </el-button>
+        <div class="session-list" v-loading="sessionsLoading">
+          <div
+            v-for="s in sessions"
+            :key="s.sessionKey"
+            class="session-item"
+            :class="{ active: s.sessionKey === currentSessionKey }"
+            @click="handleSwitchSession(s.sessionKey)"
+          >
+            <div class="session-title" :title="s.title">{{ s.title || '新对话' }}</div>
+            <div class="session-actions" @click.stop>
+              <el-button link type="primary" size="small" @click="handleRenameSession(s)">改名</el-button>
+              <el-button link type="danger" size="small" @click="handleRemoveSession(s)">删除</el-button>
+            </div>
+          </div>
+          <el-empty v-if="!sessionsLoading && sessions.length === 0" description="暂无会话" :image-size="56" />
+        </div>
+      </aside>
+
       <el-card class="ai-card">
         <div class="chat-header">
-          <div class="ai-avatar">🤖</div>
+          <div class="ai-avatar">
+            <img :src="aiAvatarHeaderUrl" alt="AI助手" />
+            <span class="status-dot"></span>
+          </div>
           <div class="ai-info">
-            <h3>毕业数据报告 AI 助手</h3>
+            <h3>AI 智能助手</h3>
             <p>基于大数据分析，为您提供智能决策支持</p>
             <div class="ai-status">
               <el-tag size="small" type="success" effect="dark">
                 <el-icon><Monitor /></el-icon> 在线
               </el-tag>
-              <span style="margin-left: 10px; color: #f0f0f0;">
-                当前年份：{{ currentYear }}年
-              </span>
             </div>
           </div>
         </div>
@@ -41,14 +55,23 @@
         <div class="chat-body">
           <div class="message-list">
             <div
-              class="message ai-message"
+              class="message"
               v-for="msg in messages"
               :key="msg.id"
-              :class="{ 'user-message': msg.role === 'user' }"
+              :class="msg.role === 'ai' ? 'ai-message' : 'user-message'"
             >
-              <div class="message-avatar">{{ msg.role === 'ai' ? '🤖' : '👤' }}</div>
+              <div class="message-avatar" v-if="msg.role === 'ai'">
+                <img :src="aiAvatarMsgUrl" alt="AI助手" />
+              </div>
+              <div class="message-avatar" v-else>
+                <svg viewBox="0 0 32 32" fill="none">
+                  <circle cx="16" cy="16" r="14" fill="#e8eef5"/>
+                  <circle cx="16" cy="14" r="5" fill="#667eea"/>
+                  <path d="M8 26 Q16 30 24 26" stroke="#667eea" stroke-width="2" stroke-linecap="round" fill="none"/>
+                </svg>
+              </div>
               <div class="message-content">
-                <div class="message-text" v-html="formatMessage(msg.content)"></div>
+                <div class="message-text" v-html="msg.html || formatMessage(msg.content)"></div>
                 <div class="message-time">{{ msg.time }}</div>
               </div>
             </div>
@@ -148,10 +171,10 @@
             <el-icon><InfoFilled /></el-icon> 使用提示
           </h4>
           <div class="tips-content">
+            <p>• 左侧可新建/切换多个会话，互不干扰</p>
             <p>• 使用自然语言提问，如"2024届就业率如何？"</p>
             <p>• 可以要求生成特定类型的分析报告</p>
-            <p>• 支持切换不同年份的数据进行分析</p>
-            <p>• 聊天记录可以导出保存</p>
+            <p>• 历史记录请到「AI 历史」表格页管理</p>
           </div>
         </div>
 
@@ -160,8 +183,8 @@
             <el-icon><History /></el-icon> 数据统计
           </h4>
           <div class="stats-content">
-            <el-progress type="circle" :percentage="chatCount" :width="60">
-              <template #default="{ percentage }">
+            <el-progress type="circle" :percentage="Math.min(chatCount, 100)" :width="60">
+              <template #default>
                 <span class="progress-text">{{ chatCount }}</span>
               </template>
             </el-progress>
@@ -177,11 +200,9 @@
 import { ref, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
-import { getChatHistoryByYear } from '../api/admin'
 import { useAiChat } from '../composables/useAiChat'
 
 const {
-  Download,
   Delete,
   Monitor,
   Send,
@@ -196,7 +217,8 @@ const {
   History
 } = ElementPlusIconsVue
 
-const availableYears = ref([2022, 2023, 2024, 2025, 2026])
+const aiAvatarHeaderUrl = '/static/AI_2.png'
+const aiAvatarMsgUrl = '/static/AI_3.png'
 
 const {
   messages,
@@ -205,17 +227,80 @@ const {
   isStreaming,
   currentYear,
   chatCount,
+  sessions,
+  currentSessionKey,
+  sessionsLoading,
   formatMessage,
   initIdentityTracking,
   loadChatHistory,
+  createSession,
+  switchSession,
+  renameSession,
+  removeSession,
   sendMessage,
   stopGeneration: stopStreaming,
   clearMemory
 } = useAiChat({
   welcomeMessage:
     '您好！我是毕业数据报告系统的 AI 助手。我可以帮您分析毕业数据、生成统计报告、预测就业趋势等。请问有什么我可以帮助您的？',
-  onError: () => ElMessage.error('AI聊天失败，请稍后重试')
+  onError: () => ElMessage.error('AI聊天失败，请稍后重试'),
+  onRiskBlocked: ({ riskWord, message }) => {
+    ElMessageBox.alert(
+      `${message}<br/><br/>命中词：<b>${riskWord || '敏感词'}</b><br/>该记录已写入异常对话，可在「AI 风控」中查看。`,
+      '内容安全提示',
+      {
+        dangerouslyUseHTMLString: true,
+        type: 'warning',
+        confirmButtonText: '知道了'
+      }
+    )
+  }
 })
+
+const handleNewSession = async () => {
+  try {
+    await createSession('新对话')
+    ElMessage.success('已新建对话')
+  } catch {
+    ElMessage.error('新建对话失败')
+  }
+}
+
+const handleSwitchSession = async (key) => {
+  if (isStreaming.value) {
+    ElMessage.warning('请先停止当前生成')
+    return
+  }
+  await switchSession(key)
+}
+
+const handleRenameSession = async (s) => {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入会话标题', '重命名', {
+      inputValue: s.title || '新对话',
+      confirmButtonText: '保存',
+      cancelButtonText: '取消'
+    })
+    if (value?.trim()) {
+      await renameSession(s.sessionKey, value.trim())
+      ElMessage.success('已重命名')
+    }
+  } catch {
+    // cancel
+  }
+}
+
+const handleRemoveSession = async (s) => {
+  try {
+    await ElMessageBox.confirm(`确定删除会话「${s.title || '新对话'}」？相关记忆与记录将一并清除。`, '提示', {
+      type: 'warning'
+    })
+    await removeSession(s.sessionKey)
+    ElMessage.success('已删除')
+  } catch {
+    // cancel
+  }
+}
 
 const quickQuestions = [
   `${currentYear.value}届就业率是多少？`,
@@ -248,92 +333,73 @@ const generateAnalysis = async (type) => {
   await sendMessage(`生成${currentYear.value}年${analysisNames[type]}`, currentYear.value)
 }
 
-const changeYear = async (year) => {
-  try {
-    const response = await getChatHistoryByYear(year)
-    if (response.code === 200) {
-      messages.value = (response.data || []).map(msg => ({
-        id: msg.id,
-        role: msg.role === 'ai' ? 'ai' : 'user',
-        content: msg.role === 'ai' ? (msg.response || msg.content) : msg.content,
-        time: msg.createTime
-          ? new Date(msg.createTime).toLocaleTimeString()
-          : new Date().toLocaleTimeString()
-      }))
-      currentYear.value = year
-      ElMessage.success(`已切换到${year}年的数据`)
-    }
-  } catch (error) {
-    console.error('切换年份失败:', error)
-    ElMessage.error('切换年份失败')
-  }
-}
-
-const exportChatHistory = () => {
-  const chatContent = messages.value.map(msg => {
-    return `[${msg.time}] ${msg.role === 'user' ? '用户' : 'AI'}：${msg.content}`
-  }).join('\n\n')
-
-  const blob = new Blob([chatContent], { type: 'text/plain' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `AI聊天记录_${new Date().toLocaleDateString()}.txt`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-}
-
 const clearChatHistory = async () => {
   try {
-    await ElMessageBox.confirm('确定要清空聊天记录和 AI 记忆吗？此操作不可恢复！', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await ElMessageBox.confirm(
+      '确定清空当前会话的 AI 记忆与落库记录？此操作不可恢复。',
+      '提示',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
     await clearMemory({
-      resetText: '记忆已清空。您好！我是毕业数据报告系统的 AI 助手，请问有什么可以帮您的？'
+      deleteDb: true,
+      resetText: '本会话记忆已清空。您好！我是毕业数据报告系统的 AI 助手，请问有什么可以帮您的？'
     })
-    ElMessage.success('聊天记录与 AI 记忆已清空')
+    ElMessage.success('本会话记忆已清空')
   } catch {
-    // 用户取消或请求失败
+    // cancel
   }
 }
 
+let scrollRafId = null
 const scrollToBottom = () => {
-  setTimeout(() => {
+  if (scrollRafId != null) return
+  scrollRafId = requestAnimationFrame(() => {
+    scrollRafId = null
     const chatBody = document.querySelector('.chat-body')
     if (chatBody) {
       chatBody.scrollTop = chatBody.scrollHeight
     }
-  }, 100)
+  })
 }
 
-watch(messages, () => {
-  scrollToBottom()
-}, { deep: true })
+// 仅在条数或最后一条长度变化时滚动，避免 deep watch 全量触发
+watch(
+  () => [
+    messages.value.length,
+    messages.value[messages.value.length - 1]?.content?.length || 0
+  ],
+  () => scrollToBottom()
+)
 
-onMounted(() => {
-  initIdentityTracking()
-  loadChatHistory()
+onMounted(async () => {
+  await initIdentityTracking()
+  await loadChatHistory()
 })
 </script>
 
 <style scoped>
 .ai-page {
-  padding: 20px;
+  padding: 16px 20px;
   background: #f8f9fa;
-  min-height: 100vh;
+  height: calc(100vh - 48px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .content-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding: 0 0 15px 0;
+  margin-bottom: 12px;
+  padding: 0 0 12px 0;
   border-bottom: 2px solid #e9ecef;
+  flex-shrink: 0;
 }
 
 .content-header h2 {
@@ -350,37 +416,126 @@ onMounted(() => {
 
 .ai-container {
   display: flex;
-  gap: 20px;
-  margin-bottom: 30px;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+}
+
+.session-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  min-height: 0;
+}
+
+.new-session-btn {
+  width: 100%;
+}
+
+.session-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.session-item {
+  padding: 10px 10px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 6px;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.session-item:hover {
+  background: #f5f7fa;
+}
+
+.session-item.active {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.session-title {
+  font-size: 13px;
+  color: #303133;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.session-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0.75;
 }
 
 .ai-card {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  height: 600px;
+  height: 100%;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.ai-card :deep(.el-card__body) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .chat-header {
   display: flex;
   align-items: center;
   gap: 15px;
-  padding: 20px;
+  padding: 16px 20px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border-radius: 8px 8px 0 0;
+  flex-shrink: 0;
 }
 
 .ai-avatar {
-  font-size: 48px;
-  background: rgba(255, 255, 255, 0.2);
-  width: 60px;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
   border-radius: 50%;
+  overflow: visible;
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.ai-avatar img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.ai-avatar .status-dot {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #67c23a;
+  border: 2px solid #fff;
 }
 
 .ai-info h3 {
@@ -401,8 +556,9 @@ onMounted(() => {
 
 .chat-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 20px;
+  padding: 16px 20px;
   background: white;
 }
 
@@ -415,18 +571,23 @@ onMounted(() => {
 .message {
   display: flex;
   gap: 12px;
-  animation: fadeIn 0.3s ease-in;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 .message-avatar {
-  font-size: 32px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
   align-self: flex-start;
+}
+
+.message-avatar img,
+.message-avatar svg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .message-content {
@@ -436,9 +597,12 @@ onMounted(() => {
   align-self: flex-start;
 }
 
+.user-message {
+  flex-direction: row-reverse;
+}
+
 .user-message .message-content {
   align-self: flex-end;
-  margin-left: auto;
 }
 
 .message-text {
@@ -539,9 +703,10 @@ onMounted(() => {
 .chat-input {
   display: flex;
   gap: 12px;
-  padding: 20px;
+  padding: 14px 16px;
   background: #f8f9fa;
   border-top: 1px solid #e9ecef;
+  flex-shrink: 0;
 }
 
 .chat-input :deep(.el-input) {
@@ -549,10 +714,13 @@ onMounted(() => {
 }
 
 .quick-actions {
-  width: 300px;
+  width: 280px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
+  overflow-y: auto;
+  max-height: 100%;
 }
 
 .quick-section {
