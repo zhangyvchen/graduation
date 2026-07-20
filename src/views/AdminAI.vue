@@ -206,6 +206,22 @@
             >
               <el-icon><Document /></el-icon> 年度报告
             </el-button>
+            <el-button
+              size="small"
+              type="primary"
+              plain
+              @click="openPeriodBrief('weekly')"
+            >
+              <el-icon><Document /></el-icon> 一键周报
+            </el-button>
+            <el-button
+              size="small"
+              type="primary"
+              plain
+              @click="openPeriodBrief('monthly')"
+            >
+              <el-icon><Document /></el-icon> 一键月报
+            </el-button>
           </div>
         </div>
 
@@ -218,6 +234,7 @@
             <p>• 使用自然语言提问，如"2024届就业率如何？"</p>
             <p>• 可以要求生成特定类型的分析报告</p>
             <p>• 可上传图片（表格/截图），AI 会解析；需要时会返回可交互图表</p>
+            <p>• 可点「一键周报/月报」生成带图表的简报并下载 PDF</p>
             <p>• 历史记录请到「AI 历史」表格页管理</p>
           </div>
         </div>
@@ -237,6 +254,12 @@
         </div>
       </div>
     </div>
+
+    <PeriodBriefDialog
+      v-model="periodBriefVisible"
+      :default-year="currentYear"
+      :initial-period-type="periodBriefInitialType"
+    />
   </div>
 </template>
 
@@ -246,6 +269,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import { useAiChat } from '../composables/useAiChat'
 import ChatRichBody from '../components/ChatRichBody.vue'
+import PeriodBriefDialog from '../components/PeriodBriefDialog.vue'
 
 const {
   Delete,
@@ -266,6 +290,13 @@ const {
 const aiAvatarHeaderUrl = '/static/AI_2.png'
 const aiAvatarMsgUrl = '/static/AI_3.png'
 const imageInputRef = ref(null)
+const periodBriefVisible = ref(false)
+const periodBriefInitialType = ref('weekly')
+
+const openPeriodBrief = (type) => {
+  periodBriefInitialType.value = type || 'weekly'
+  periodBriefVisible.value = true
+}
 
 const {
   messages,

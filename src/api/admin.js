@@ -41,25 +41,6 @@ export function saveAdmin(data) {
 }
 
 // AI功能相关接口
-export function aiChatStream(data) {
-  return fetch('/api/ai/chat/stream', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(data)
-  })
-}
-
-/** @deprecated 请使用 aiStreamChat 工具函数 */
-export function aiChat(data) {
-  return request({
-    url: '/ai/chat',
-    method: 'post',
-    data
-  })
-}
-
 export function getAiModels() {
   return request({
     url: '/ai/models',
@@ -135,19 +116,6 @@ export function deleteAiSession(sessionKey, params = {}) {
       userId: userType === 'student' ? userId : undefined,
       adminId: userType === 'admin' ? adminId : undefined,
       clearMemory
-    }
-  })
-}
-
-export function deleteChatHistory(payload = {}) {
-  const { userType = 'student', userId, adminId } = payload
-  return request({
-    url: '/ai/chat-history',
-    method: 'delete',
-    params: {
-      userType,
-      userId: userType === 'student' ? userId : undefined,
-      adminId: userType === 'admin' ? adminId : undefined
     }
   })
 }
@@ -260,42 +228,37 @@ export function reloadSensitiveLexicon() {
   })
 }
 
-export function getChatHistoryByYear(year) {
+export function generateStudentFutureAdvice(data) {
   return request({
-    url: `/ai/chat-history/year/${year}`,
-    method: 'get'
+    url: '/ai/student-future-advice',
+    method: 'post',
+    data,
+    timeout: 120000
   })
 }
 
-export function generateEmploymentAnalysis(data) {
+export function getStudentFutureAdvice(params) {
   return request({
-    url: '/ai/employment-analysis',
-    method: 'post',
-    data
+    url: '/ai/student-future-advice',
+    method: 'get',
+    params
   })
 }
 
-export function generateMajorAnalysis(data) {
+export function deleteStudentFutureAdvice(params) {
   return request({
-    url: '/ai/major-analysis',
-    method: 'post',
-    data
+    url: '/ai/student-future-advice',
+    method: 'delete',
+    params
   })
 }
 
-export function generatePredictionAnalysis(data) {
+export function generatePeriodBrief(data) {
   return request({
-    url: '/ai/prediction-analysis',
+    url: '/ai/period-brief',
     method: 'post',
-    data
-  })
-}
-
-export function generateAnnualReport(data) {
-  return request({
-    url: '/ai/annual-report',
-    method: 'post',
-    data
+    data,
+    timeout: 120000
   })
 }
 
