@@ -31,6 +31,12 @@
             </div>
           </div>
           <div class="header-actions">
+            <button class="header-icon-btn" title="新对话" @click.stop="handleNewChat">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
             <button class="header-icon-btn" title="清除记忆" @click.stop="clearMemory">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="3 6 5 6 21 6"></polyline>
@@ -58,7 +64,7 @@
               </svg>
             </div>
             <div class="message-content">
-              <div class="message-text" v-html="formatMessageContent(msg.content)"></div>
+              <div class="message-text" v-html="msg.html || formatMessageContent(msg.content)"></div>
               <span class="message-time">{{ msg.time || formatTime() }}</span>
             </div>
           </div>
@@ -141,8 +147,11 @@ if (window.__aiFloatButtonMounted__) {
 }
 window.__aiFloatButtonMounted__ = true
 
+let scrollRafId = null
 const scrollToBottom = () => {
-  nextTick(() => {
+  if (scrollRafId != null) return
+  scrollRafId = requestAnimationFrame(() => {
+    scrollRafId = null
     if (messagesContainer.value) {
       messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
     }
@@ -158,7 +167,7 @@ const {
   formatTime,
   setAlive,
   initIdentityTracking,
-  loadChatHistory,
+  createSession,
   sendMessage: sendChatMessage,
   stopGeneration,
   clearMemory: clearChatMemory
@@ -514,18 +523,28 @@ const clearMemory = async () => {
   }
 }
 
+const handleNewChat = async () => {
+  try {
+    await createSession('新对话')
+    ElMessage.success('已新建对话')
+    scrollToBottom()
+  } catch (error) {
+    console.error('新建对话失败:', error)
+    ElMessage.error('新建对话失败')
+  }
+}
+
 const handleResize = () => {
   viewport.value = { width: window.innerWidth, height: window.innerHeight }
   clampButtonPosition()
   fitPanelToViewport()
 }
 
-onMounted(() => {
+onMounted(async () => {
   setAlive(true)
-  initIdentityTracking()
+  await initIdentityTracking()
   viewport.value = { width: window.innerWidth, height: window.innerHeight }
   loadPosition()
-  loadChatHistory()
   window.addEventListener('resize', handleResize)
 })
 

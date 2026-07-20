@@ -2,7 +2,14 @@ import { ref, computed, watch } from 'vue'
 import { useAuth } from '../stores/auth'
 import { streamAIChat } from '../utils/aiStreamChat'
 import { formatAIContent } from '../utils/formatAIContent'
-import { getChatHistory, clearAiMemory, checkAiRisk } from '../api/admin'
+import {
+  getChatHistory,
+  clearAiMemory,
+  listAiSessions,
+  createAiSession,
+  renameAiSession,
+  deleteAiSession
+} from '../api/admin'
 
 const DEFAULT_WELCOME =
   '您好！我是毕业数据报告系统的 AI 助手，有什么可以帮您的？'
@@ -53,21 +60,17 @@ function getIdentityMemoryKey(identity) {
   return `guest:${identity.userId ?? 'anonymous'}`
 }
 
-/**
- * 是否需要在角色切换时自动清记忆
- * - 游客 -> 学生/管理员：不清
- * - 学生 <-> 管理员、登录 -> 游客：清
- */
+function sessionStorageKey(identity) {
+  return `aiCurrentSession:${getIdentityMemoryKey(identity)}`
+}
+
 function shouldAutoClearOnRoleSwitch(prevKey, nextKey) {
   if (!prevKey || prevKey === nextKey) return false
-
   const prevRole = prevKey.split(':')[0]
   const nextRole = nextKey.split(':')[0]
-
   if (prevRole === 'guest' && (nextRole === 'student' || nextRole === 'admin')) {
     return false
   }
-
   return true
 }
 
@@ -79,8 +82,18 @@ function formatTime() {
   })
 }
 
+function buildMessage({ id, role, content, time }) {
+  return {
+    id,
+    role,
+    content: content || '',
+    html: formatAIContent(content || ''),
+    time: time || formatTime()
+  }
+}
+
 function mapHistoryMessages(list) {
-  return (list || []).map(msg => ({
+  return (list || []).map(msg => buildMessage({
     id: msg.id,
     role: msg.role === 'ai' ? 'ai' : 'user',
     content: msg.role === 'ai' ? (msg.response || msg.content) : msg.content,
@@ -90,8 +103,12 @@ function mapHistoryMessages(list) {
   }))
 }
 
+function genLocalSessionKey() {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
+}
+
 /**
- * AI 对话公共逻辑：流式发送、停止、历史、清除记忆
+ * AI 对话公共逻辑：多会话、流式发送、停止、历史、清除记忆
  */
 export function useAiChat(options = {}) {
   const {
@@ -105,23 +122,28 @@ export function useAiChat(options = {}) {
   const { state: authState } = useAuth()
 
   const messages = ref([
-    {
+    buildMessage({
       id: 1,
       role: 'ai',
-      content: welcomeMessage,
-      time: formatTime()
-    }
+      content: welcomeMessage
+    })
   ])
   const inputText = ref('')
   const isLoading = ref(false)
   const isStreaming = ref(false)
   const currentYear = ref(defaultYear)
+  const sessions = ref([])
+  const currentSessionKey = ref(localStorage.getItem(sessionStorageKey(resolveChatIdentity(authState))) || '')
+  const sessionsLoading = ref(false)
 
   let abortController = null
   let alive = true
 
   const chatCount = computed(() => messages.value.length)
   const identity = computed(() => resolveChatIdentity(authState))
+  const currentSession = computed(() =>
+    sessions.value.find(s => s.sessionKey === currentSessionKey.value) || null
+  )
 
   let lastIdentity = { ...identity.value }
   let roleSwitchHandling = false
@@ -132,53 +154,21 @@ export function useAiChat(options = {}) {
     alive = value
   }
 
+  const persistSessionKey = (key) => {
+    currentSessionKey.value = key || ''
+    if (key) {
+      localStorage.setItem(sessionStorageKey(identity.value), key)
+    }
+  }
+
   const resetLocalMessages = (resetText) => {
-    messages.value = [{
-      id: Date.now(),
-      role: 'ai',
-      content: resetText || welcomeMessage,
-      time: formatTime()
-    }]
-  }
-
-  const clearMemoryForIdentity = async (targetIdentity, deleteDb = false) => {
-    if (!targetIdentity || targetIdentity.userRole === 'guest') return
-    await clearAiMemory({
-      userType: targetIdentity.userRole,
-      userId: targetIdentity.userId,
-      adminId: targetIdentity.adminId,
-      deleteDb
-    })
-  }
-
-  const handleRoleSwitch = async (prevIdentity, nextIdentity) => {
-    const prevKey = getIdentityMemoryKey(prevIdentity)
-    const nextKey = getIdentityMemoryKey(nextIdentity)
-    const shouldClear = shouldAutoClearOnRoleSwitch(prevKey, nextKey)
-
-    if (!shouldClear) {
-      if (nextIdentity.userRole !== 'guest') {
-        await loadChatHistory()
-      }
-      return
-    }
-
-    roleSwitchHandling = true
-    stopGeneration()
-
-    try {
-      await clearMemoryForIdentity(prevIdentity)
-    } catch (error) {
-      console.warn('切换角色时清理旧身份记忆失败:', error)
-    }
-
-    resetLocalMessages(ROLE_SWITCH_RESET_TEXT)
-
-    if (nextIdentity.userRole !== 'guest') {
-      await loadChatHistory()
-    }
-
-    roleSwitchHandling = false
+    messages.value = [
+      buildMessage({
+        id: Date.now(),
+        role: 'ai',
+        content: resetText || welcomeMessage
+      })
+    ]
   }
 
   const stopGeneration = () => {
@@ -192,14 +182,24 @@ export function useAiChat(options = {}) {
 
   const loadChatHistory = async () => {
     const id = identity.value
-    if (id.userRole === 'guest') return
+    if (id.userRole === 'guest') {
+      resetLocalMessages(welcomeMessage)
+      return
+    }
+    if (!currentSessionKey.value) {
+      await loadSessions()
+    }
 
     try {
       const response = await getChatHistory(id.userId, {
         userType: id.userRole,
-        adminId: id.adminId
+        adminId: id.adminId,
+        sessionId: currentSessionKey.value || undefined
       })
       if (!alive) return
+      if (response.meta?.sessionKey) {
+        persistSessionKey(response.meta.sessionKey)
+      }
       if (response.code === 200 && response.data?.length > 0) {
         messages.value = mapHistoryMessages(response.data)
       } else {
@@ -225,41 +225,186 @@ export function useAiChat(options = {}) {
     { deep: true }
   )
 
+  const patchSessionTitleLocally = (sessionId, content) => {
+    if (!sessionId || !content) return
+    const idx = sessions.value.findIndex(s => s.sessionKey === sessionId)
+    if (idx === -1) return
+    const current = sessions.value[idx]
+    if (current.title && current.title !== '新对话') return
+    const title = content.trim().slice(0, 20) || '新对话'
+    sessions.value[idx] = { ...current, title }
+  }
+
+  const clearMemoryForIdentity = async (targetIdentity, deleteDb = false, sessionKey = null) => {
+    if (!targetIdentity || targetIdentity.userRole === 'guest') return
+    await clearAiMemory({
+      userType: targetIdentity.userRole,
+      userId: targetIdentity.userId,
+      adminId: targetIdentity.adminId,
+      sessionId: sessionKey || currentSessionKey.value || undefined,
+      deleteDb
+    })
+  }
+
+  const loadSessions = async () => {
+    const id = identity.value
+    if (id.userRole === 'guest') {
+      sessions.value = []
+      if (!currentSessionKey.value) {
+        persistSessionKey(genLocalSessionKey())
+      }
+      return sessions.value
+    }
+    sessionsLoading.value = true
+    try {
+      const res = await listAiSessions({
+        userType: id.userRole,
+        userId: id.userId,
+        adminId: id.adminId
+      })
+      if (!alive) return []
+      sessions.value = res.code === 200 ? (res.data || []) : []
+      if (sessions.value.length === 0) {
+        await createSession('新对话')
+      } else {
+        const preferred = currentSessionKey.value
+        const hit = sessions.value.find(s => s.sessionKey === preferred)
+        persistSessionKey(hit ? hit.sessionKey : sessions.value[0].sessionKey)
+      }
+      return sessions.value
+    } catch (e) {
+      console.error('加载会话列表失败:', e)
+      return []
+    } finally {
+      sessionsLoading.value = false
+    }
+  }
+
+  const createSession = async (title = '新对话') => {
+    const id = identity.value
+    stopGeneration()
+    if (id.userRole === 'guest') {
+      persistSessionKey(genLocalSessionKey())
+      resetLocalMessages(welcomeMessage)
+      return { sessionKey: currentSessionKey.value, title }
+    }
+    try {
+      const res = await createAiSession({
+        userRole: id.userRole,
+        userId: id.userId,
+        adminId: id.adminId,
+        title
+      })
+      if (res.code === 200 && res.data?.sessionKey) {
+        const session = res.data
+        sessions.value = [session, ...sessions.value.filter(s => s.sessionKey !== session.sessionKey)]
+        persistSessionKey(session.sessionKey)
+        resetLocalMessages(welcomeMessage)
+        return session
+      }
+    } catch (e) {
+      console.error('创建会话失败:', e)
+      throw e
+    }
+    return null
+  }
+
+  const switchSession = async (sessionKey) => {
+    if (!sessionKey || sessionKey === currentSessionKey.value) return
+    stopGeneration()
+    persistSessionKey(sessionKey)
+    await loadChatHistory()
+  }
+
+  const renameSession = async (sessionKey, title) => {
+    const id = identity.value
+    if (id.userRole === 'guest' || !sessionKey || !title?.trim()) return
+    const res = await renameAiSession(sessionKey, {
+      userRole: id.userRole,
+      userId: id.userId,
+      adminId: id.adminId,
+      title: title.trim()
+    })
+    if (res.code === 200 && res.data) {
+      const idx = sessions.value.findIndex(s => s.sessionKey === sessionKey)
+      if (idx !== -1) sessions.value[idx] = res.data
+    }
+    return res
+  }
+
+  const removeSession = async (sessionKey) => {
+    const id = identity.value
+    if (!sessionKey) return
+    stopGeneration()
+    if (id.userRole === 'guest') {
+      if (sessionKey === currentSessionKey.value) {
+        await createSession()
+      }
+      return
+    }
+    await deleteAiSession(sessionKey, {
+      userType: id.userRole,
+      userId: id.userId,
+      adminId: id.adminId,
+      clearMemory: true
+    })
+    sessions.value = sessions.value.filter(s => s.sessionKey !== sessionKey)
+    if (currentSessionKey.value === sessionKey) {
+      if (sessions.value.length > 0) {
+        persistSessionKey(sessions.value[0].sessionKey)
+        await loadChatHistory()
+      } else {
+        await createSession()
+      }
+    }
+  }
+
+  const handleRoleSwitch = async (prevIdentity, nextIdentity) => {
+    const prevKey = getIdentityMemoryKey(prevIdentity)
+    const nextKey = getIdentityMemoryKey(nextIdentity)
+    const shouldClear = shouldAutoClearOnRoleSwitch(prevKey, nextKey)
+
+    if (!shouldClear) {
+      await loadSessions()
+      if (nextIdentity.userRole !== 'guest') {
+        await loadChatHistory()
+      } else {
+        resetLocalMessages(welcomeMessage)
+      }
+      return
+    }
+
+    roleSwitchHandling = true
+    stopGeneration()
+
+    try {
+      await clearMemoryForIdentity(prevIdentity, false, null)
+    } catch (error) {
+      console.warn('切换角色时清理旧身份记忆失败:', error)
+    }
+
+    persistSessionKey('')
+    resetLocalMessages(ROLE_SWITCH_RESET_TEXT)
+    await loadSessions()
+    if (nextIdentity.userRole !== 'guest') {
+      await loadChatHistory()
+    }
+    roleSwitchHandling = false
+  }
+
   const sendMessage = async (rawContent, yearOverride) => {
     const content = (rawContent ?? inputText.value).trim()
     if (!content || isStreaming.value) return
+
+    if (!currentSessionKey.value) {
+      await loadSessions()
+    }
 
     const yearMatch = content.match(/(\d{4})年/)
     const year = yearOverride
       ?? (yearMatch ? parseInt(yearMatch[1], 10) : currentYear.value)
     const id = identity.value
-
-    try {
-      const riskRes = await checkAiRisk({
-        content,
-        userId: id.userId,
-        adminId: id.adminId,
-        userRole: id.userRole,
-        year
-      })
-      if (riskRes?.code === 403 || riskRes?.data?.blocked) {
-        const riskWord = riskRes?.data?.riskWord || '敏感词'
-        const tip = riskRes?.message || `检测到敏感内容「${riskWord}」，已拦截并记录。`
-        onRiskBlocked?.({ riskWord, message: tip, raw: riskRes })
-        return
-      }
-    } catch (error) {
-      // 拦截器若把业务 403 当成异常抛出，也要按拦截处理，不能继续发给模型
-      const data = error?.response?.data
-      if (data?.code === 403 || data?.data?.blocked) {
-        const riskWord = data?.data?.riskWord || '敏感词'
-        const tip = data?.message || `检测到敏感内容「${riskWord}」，已拦截并记录。`
-        onRiskBlocked?.({ riskWord, message: tip, raw: data })
-        return
-      }
-      // 预检接口不可用时不阻断；流式接口仍会二次拦截
-      console.warn('危险词预检失败，继续发送:', error)
-    }
+    const sessionId = currentSessionKey.value || undefined
 
     stopGeneration()
     abortController = new AbortController()
@@ -270,20 +415,20 @@ export function useAiChat(options = {}) {
       inputText.value = ''
     }
 
-    messages.value.push({
+    messages.value.push(buildMessage({
       id: Date.now(),
       role: 'user',
-      content,
-      time: formatTime()
-    })
+      content
+    }))
 
     const aiMessageId = Date.now() + 1
-    messages.value.push({
+    messages.value.push(buildMessage({
       id: aiMessageId,
       role: 'ai',
-      content: '',
-      time: formatTime()
-    })
+      content: ''
+    }))
+
+    patchSessionTitleLocally(sessionId, content)
 
     try {
       await streamAIChat({
@@ -293,6 +438,7 @@ export function useAiChat(options = {}) {
         year,
         messageType: 'general',
         userRole: id.userRole,
+        sessionId,
         signal: abortController.signal,
         onChunk: (chunk) => {
           if (!alive) return
@@ -300,6 +446,7 @@ export function useAiChat(options = {}) {
           const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
           if (aiMsgIndex !== -1) {
             messages.value[aiMsgIndex].content += chunk
+            messages.value[aiMsgIndex].html = formatAIContent(messages.value[aiMsgIndex].content)
             onAfterChunk?.(messages.value[aiMsgIndex])
           }
         },
@@ -309,15 +456,21 @@ export function useAiChat(options = {}) {
           const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
           if (aiMsgIndex !== -1) {
             messages.value[aiMsgIndex].content = tip
+            messages.value[aiMsgIndex].html = formatAIContent(tip)
           }
         }
       })
+      if (id.userRole !== 'guest') {
+        loadSessions()
+      }
     } catch (error) {
       if (error.name !== 'AbortError') {
         console.error('AI聊天失败:', error)
         const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
         if (aiMsgIndex !== -1 && !messages.value[aiMsgIndex].content) {
-          messages.value[aiMsgIndex].content = '网络连接异常，请稍后重试。'
+          const tip = '网络连接异常，请稍后重试。'
+          messages.value[aiMsgIndex].content = tip
+          messages.value[aiMsgIndex].html = formatAIContent(tip)
         }
         onError?.(error)
       }
@@ -333,7 +486,7 @@ export function useAiChat(options = {}) {
     stopGeneration()
 
     try {
-      await clearMemoryForIdentity(id, deleteDb)
+      await clearMemoryForIdentity(id, deleteDb, currentSessionKey.value)
     } catch (error) {
       console.error('清除记忆失败:', error)
       throw error
@@ -343,8 +496,11 @@ export function useAiChat(options = {}) {
     lastIdentity = { ...id }
   }
 
-  const initIdentityTracking = () => {
+  const initIdentityTracking = async () => {
     lastIdentity = { ...identity.value }
+    const saved = localStorage.getItem(sessionStorageKey(identity.value))
+    if (saved) currentSessionKey.value = saved
+    await loadSessions()
   }
 
   return {
@@ -355,11 +511,20 @@ export function useAiChat(options = {}) {
     currentYear,
     chatCount,
     identity,
+    sessions,
+    currentSessionKey,
+    currentSession,
+    sessionsLoading,
     formatMessage,
     formatTime,
     setAlive,
     initIdentityTracking,
     loadChatHistory,
+    loadSessions,
+    createSession,
+    switchSession,
+    renameSession,
+    removeSession,
     sendMessage,
     stopGeneration,
     clearMemory
