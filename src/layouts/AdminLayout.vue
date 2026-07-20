@@ -16,64 +16,70 @@
           text-color="#2D5A7A"
           active-text-color="#2D5A7A"
           :collapse="false"
+          @mousemove="handleMenuMouseMove"
+          @mouseleave="handleMenuMouseLeave"
         >
-          <el-menu-item index="/admin/dashboard">
+          <el-menu-item index="/admin/dashboard" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+            <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">🏠</span>
             </template>
             <template #title>管理首页</template>
           </el-menu-item>
-          <el-menu-item index="/admin/batch">
+          <el-menu-item index="/admin/batch" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+            <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">📋</span>
             </template>
             <template #title>批次管理</template>
           </el-menu-item>
-          <el-menu-item index="/admin/student">
+          <el-menu-item index="/admin/student" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+            <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">👥</span>
             </template>
             <template #title>名单管理</template>
           </el-menu-item>
-          <el-menu-item index="/admin/statistics">
+          <el-menu-item index="/admin/statistics" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+            <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">📈</span>
             </template>
             <template #title>数据统计</template>
           </el-menu-item>
-          <el-menu-item index="/admin/template">
+          <el-menu-item index="/admin/template" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+            <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">📝</span>
             </template>
             <template #title>报告模板配置</template>
           </el-menu-item>
-          <el-menu-item index="/admin/verify">
+          <el-menu-item index="/admin/verify" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+            <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">✅</span>
             </template>
             <template #title>核销管理</template>
           </el-menu-item>
-          <el-menu-item index="/admin/import">
+          <el-menu-item index="/admin/import" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+            <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">📥</span>
             </template>
             <template #title>数据导入</template>
           </el-menu-item>
-          <el-menu-item index="/admin/message">
+          <el-menu-item index="/admin/message" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" class="menu-item-with-badge">
+            <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">💬</span>
             </template>
-            <template #title>
-              留言审核
-              <el-badge
-                v-if="pendingMessageCount > 0"
-                :value="pendingMessageCount"
-                :max="99"
-                class="menu-badge"
-              />
-            </template>
+            <template #title>留言审核</template>
+            <span v-if="pendingMessageCount > 0" class="custom-badge">
+              {{ pendingMessageCount > 99 ? '99+' : pendingMessageCount }}
+            </span>
           </el-menu-item>
-          <el-menu-item index="/admin/ai">
+          <el-menu-item index="/admin/ai" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+            <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">🤖</span>
             </template>
@@ -196,6 +202,37 @@ onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
 })
 
+const handleMenuItemMouseMove = (e) => {
+  const menuItem = e.currentTarget
+  const mask = menuItem.querySelector('.light-mask')
+  if (!mask) return
+  
+  // 根据菜单项是否激活切换光影颜色
+  const isActive = menuItem.classList.contains('is-active')
+  const bg = isActive 
+    ? 'radial-gradient(circle, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.2) 40%, rgba(255,255,255,0) 70%)'
+    : 'radial-gradient(circle, rgba(182, 221, 220, 0.4) 0%, rgba(182, 221, 220, 0.1) 40%, rgba(182, 221, 220, 0) 70%)'
+  
+  mask.style.background = bg
+  mask.style.opacity = '1'
+  
+  const rect = menuItem.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  mask.style.left = `${x}px`
+  mask.style.top = `${y}px`
+}
+
+const handleMenuItemMouseLeave = (e) => {
+  const mask = e.currentTarget.querySelector('.light-mask')
+  if (mask) {
+    mask.style.opacity = '0'
+  }
+}
+
+const handleMenuMouseMove = () => {}
+const handleMenuMouseLeave = () => {}
+
 const showChangePasswordDialog = ref(false)
 const isChanging = ref(false)
 const changePasswordForm = ref({
@@ -315,6 +352,24 @@ const handleChangePassword = async () => {
   height: 44px;
   line-height: 44px;
   transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar-menu :deep(.el-menu-item) .light-mask {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(182, 221, 220, 0.4) 0%, rgba(182, 221, 220, 0.1) 40%, rgba(182, 221, 220, 0) 70%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease, background 0.3s ease;
+  transform: translate(-50%, -50%);
+  left: 0;
+  top: 0;
+  z-index: 10;
+  will-change: left, top, opacity;
 }
 
 .sidebar-menu :deep(.el-menu-item:hover) {
@@ -334,11 +389,22 @@ const handleChangePassword = async () => {
   font-size: 18px;
   margin-right: 10px;
 }
-.menu-badge {
+
+.custom-badge {
   position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 4px;
+  right: 6px;
+  background-color: #F56C6C;
+  color: #FFFFFF;
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 10px;
+  z-index: 20;
+  pointer-events: none;
+  font-weight: 500;
+  box-shadow: 0 2px 6px rgba(245, 108, 108, 0.4);
+  transform: scale(0.9);
 }
 
 .sidebar-footer {

@@ -98,8 +98,15 @@ export const getStudentByStudentId = (studentId) => request({
 
 // ====================== 管理员后台学生管理模块 ======================
 // 查询学生总数（管理端使用）
-export const getAllStudents = () => request({
+export const getAllStudents = (year) => request({
   url: '/admin/student/count',
+  method: 'get',
+  params: year ? { year } : {}
+})
+
+// 获取所有年份列表
+export const getStudentYears = () => request({
+  url: '/admin/student/years',
   method: 'get'
 })
 
@@ -108,6 +115,13 @@ export const getStudentList = (params) => request({
   url: '/admin/student/page',
   method: 'get',
   params
+})
+
+// 仪表盘学生列表（包含薪资、省份等完整信息）
+export const getDashboardStudentList = (year) => request({
+  url: '/admin/student/dashboard-list',
+  method: 'get',
+  params: year ? { year } : {}
 })
 
 // 新增学生

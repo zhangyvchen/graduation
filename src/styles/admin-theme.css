@@ -97,11 +97,66 @@ body {
 .el-dialog__header {
   background-color: #EDF5F3;
   border-radius: 20px 20px 0 0;
+  padding: 20px;
+  margin-right: 0;
+  position: relative;
 }
 
 .el-dialog__title {
   color: var(--color-text-primary);
   font-weight: 600;
+}
+
+.el-dialog__headerbtn {
+  top: 20px !important;
+  right: 20px !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+.el-dialog__headerbtn:hover {
+  background: rgba(232, 160, 160, 0.15) !important;
+  transform: rotate(180deg) !important;
+}
+
+.el-dialog__headerbtn .el-dialog__close {
+  font-size: 18px !important;
+  color: var(--color-text-muted) !important;
+  transition: color 0.3s ease !important;
+}
+
+.el-dialog__headerbtn:hover .el-dialog__close {
+  color: var(--color-error) !important;
+}
+
+.el-dialog__body {
+  padding: 20px;
+}
+
+.student-modal .modal-content {
+  overflow: visible;
+}
+
+.student-modal .student-table {
+  width: 100%;
+}
+
+.student-modal .el-scrollbar__bar {
+  opacity: 1 !important;
+}
+
+.student-modal .el-scrollbar__thumb {
+  background: #D1E8E6 !important;
+  border-radius: 4px !important;
+}
+
+.student-modal .el-scrollbar__thumb:hover {
+  background: #B6DDDC !important;
 }
 
 .el-pagination {
