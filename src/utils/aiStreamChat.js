@@ -42,6 +42,7 @@ export async function streamAIChat({
   signal,
   onChunk,
   onBlocked,
+  onError,
   onStatus
 }) {
   const response = await fetch('/api/ai/chat/stream', {
@@ -96,7 +97,8 @@ export async function streamAIChat({
     }
 
     if (event === 'error') {
-      onBlocked?.({ message: data || 'AI 服务异常' })
+      // 普通服务错误，不要当成风控拦截弹窗
+      onError?.(new Error(data || 'AI 服务异常'))
       return true
     }
 

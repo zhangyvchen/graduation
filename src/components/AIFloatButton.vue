@@ -217,6 +217,7 @@ const {
   resolveVisionModelId,
   setAlive,
   initIdentityTracking,
+  loadChatHistory,
   createSession,
   sendMessage: sendChatMessage,
   addImages,
@@ -225,6 +226,7 @@ const {
   clearMemory: clearChatMemory
 } = useAiChat({
   onAfterChunk: () => scrollToBottom(),
+  onError: () => ElMessage.error('AI 对话失败，请稍后重试'),
   onRiskBlocked: ({ message }) => {
     ElMessage.warning(message || '检测到敏感内容，已拦截并记录')
   }
