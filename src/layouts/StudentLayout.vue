@@ -41,6 +41,7 @@
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item v-if="auth.isAdmin()" @click="router.push('/admin/dashboard')">返回管理首页</el-dropdown-item>
+              <el-dropdown-item v-if="auth.isAssistant()" @click="router.push('/admin/dashboard')">管理后台</el-dropdown-item>
               <el-dropdown-item v-if ="auth.isStudent()" @click="router.push('/student/profile')">返回学生中心</el-dropdown-item>
               <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
             </el-dropdown-menu>

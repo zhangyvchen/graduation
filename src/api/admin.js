@@ -40,6 +40,21 @@ export function saveAdmin(data) {
   })
 }
 
+export function updateAdmin(data) {
+  return request({
+    url: '/admin',
+    method: 'put',
+    data
+  })
+}
+
+export function deleteAdmin(id) {
+  return request({
+    url: `/admin/${id}`,
+    method: 'delete'
+  })
+}
+
 // AI功能相关接口
 export function getAiModels() {
   return request({
@@ -299,5 +314,118 @@ export function deleteMessage(id) {
   return request({
     url: `/admin/message/${id}`,
     method: 'delete'
+  })
+}
+
+// ============= 权限管理 =============
+
+export function getRoleList() {
+  return request({
+    url: '/admin/role/list',
+    method: 'get'
+  })
+}
+
+export function getRoleById(id) {
+  return request({
+    url: `/admin/role/${id}`,
+    method: 'get'
+  })
+}
+
+export function saveRole(data) {
+  return request({
+    url: '/admin/role',
+    method: 'post',
+    data
+  })
+}
+
+export function updateRole(data) {
+  return request({
+    url: '/admin/role',
+    method: 'put',
+    data
+  })
+}
+
+export function deleteRole(id) {
+  return request({
+    url: `/admin/role/${id}`,
+    method: 'delete'
+  })
+}
+
+export function getRolePermissions(id) {
+  return request({
+    url: `/admin/role/${id}/permissions`,
+    method: 'get'
+  })
+}
+
+export function saveRolePermissions(id, data) {
+  return request({
+    url: `/admin/role/${id}/permissions`,
+    method: 'post',
+    data
+  })
+}
+
+export function getPermissionList() {
+  return request({
+    url: '/admin/permission/list',
+    method: 'get'
+  })
+}
+
+export function getGroupedPermissions() {
+  return request({
+    url: '/admin/permission/grouped',
+    method: 'get'
+  })
+}
+
+export function savePermission(data) {
+  return request({
+    url: '/admin/permission',
+    method: 'post',
+    data
+  })
+}
+
+export function updatePermission(data) {
+  return request({
+    url: '/admin/permission',
+    method: 'put',
+    data
+  })
+}
+
+export function deletePermission(id) {
+  return request({
+    url: `/admin/permission/${id}`,
+    method: 'delete'
+  })
+}
+
+export function getAdminPermissions(id) {
+  return request({
+    url: `/admin/${id}/permissions`,
+    method: 'get'
+  })
+}
+
+export function getAdminPermissionIds(id) {
+  return request({
+    url: `/admin/${id}/permission-ids`,
+    method: 'get'
+  })
+}
+
+export function saveAdminPermissions(id, data) {
+  return request({
+    url: `/admin/${id}/permissions`,
+    method: 'post',
+    data
   })
 }

@@ -131,11 +131,7 @@
           </el-checkbox-group>
         </el-form-item>
         <el-form-item label="模板内容">
-          <el-input v-model="formData.content" type="textarea" :rows="8" placeholder="编写报告内容，支持魔法占位符..." />
-          <div class="placeholder-hint">
-            <span class="hint-icon">🪄</span>
-            <span>魔法占位符：{{studentId}}, {{name}}, {{className}}, {{major}}, {{employmentStatus}}</span>
-          </div>
+          <el-input v-model="formData.content" type="textarea" :rows="8" placeholder="编写报告模板内容" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -293,9 +289,21 @@ const handleAdd = () => {
 
 const handleEdit = (template) => {
   isEdit.value = true
+  let sections = []
+  if (template.sections) {
+    if (Array.isArray(template.sections)) {
+      sections = [...template.sections]
+    } else if (typeof template.sections === 'string') {
+      try {
+        sections = JSON.parse(template.sections)
+      } catch {
+        sections = template.sections.split(',').filter(s => s.trim())
+      }
+    }
+  }
   formData.value = {
     ...template,
-    sections: template.sections ? JSON.parse(template.sections) : []
+    sections
   }
   dialogVisible.value = true
 }
@@ -1056,25 +1064,12 @@ onMounted(() => {
 }
 
 .template-form :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-color: transparent;
+  background: #B6DDDC;
+  border-color: #B6DDDC;
 }
 
-.placeholder-hint {
-  margin-top: 12px;
-  padding: 14px 18px;
-  background: rgba(102, 126, 234, 0.06);
-  border-radius: 12px;
-  font-size: 13px;
-  color: #667eea;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid rgba(102, 126, 234, 0.15);
-}
-
-.hint-icon {
-  color: #667eea;
+.template-form :deep(.el-checkbox__input.is-checked + .el-checkbox__label) {
+  color: #2D5A7A;
 }
 
 .footer-btn {
@@ -1096,15 +1091,16 @@ onMounted(() => {
 }
 
 .footer-btn.confirm-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
+  background: #B6DDDC;
+  color: #2D5A7A;
   border: none;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 15px rgba(182, 221, 220, 0.4);
 }
 
 .footer-btn.confirm-btn:hover {
+  background: #A3D4D2;
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 6px 20px rgba(182, 221, 220, 0.5);
 }
 
 .preview-dialog {

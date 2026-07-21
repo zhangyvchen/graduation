@@ -64,12 +64,17 @@ export const useAuth = () => {
     return state.role?.toUpperCase() === 'STUDENT'
   }
 
+  const isAssistant = () => {
+    return state.role?.toUpperCase() === 'ASSISTANT'
+  }
+
   return {
     state,
     login,
     logout,
     isAdmin,
-    isStudent
+    isStudent,
+    isAssistant
   }
 }
 
