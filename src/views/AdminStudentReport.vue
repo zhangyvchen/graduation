@@ -60,10 +60,24 @@
               <h3>{{ section.title }}</h3>
             </div>
             <div class="section-body">
-              <div v-for="(item, itemIndex) in section.items" :key="itemIndex" class="info-item">
-                <span class="info-label">{{ item.label }}</span>
-                <span class="info-value">{{ item.value || '-' }}</span>
-              </div>
+              <template v-if="section.title === '未来建议' && adviceEditing">
+                <div v-for="field in adviceEditFields" :key="field.key" class="info-item advice-edit-item">
+                  <span class="info-label">{{ field.label }}</span>
+                  <el-input
+                    v-model="adviceDraft[field.key]"
+                    type="textarea"
+                    :rows="3"
+                    maxlength="800"
+                    show-word-limit
+                  />
+                </div>
+              </template>
+              <template v-else>
+                <div v-for="(item, itemIndex) in section.items" :key="itemIndex" class="info-item">
+                  <span class="info-label">{{ item.label }}</span>
+                  <span class="info-value">{{ item.value || '-' }}</span>
+                </div>
+              </template>
               <div v-if="section.subItems && section.subItems.length > 0" class="sub-items">
                 <div v-for="(subItem, subIndex) in section.subItems" :key="subIndex" class="sub-item">
                   <div class="sub-item-header">{{ subItem.title }}</div>
@@ -128,12 +142,39 @@
               type="primary"
               size="small"
               :loading="adviceLoading"
+              :disabled="adviceEditing"
               @click="generateFutureAdvice"
             >
               AI 一键生成未来建议
             </el-button>
             <el-button
-              v-if="aiAdvice"
+              v-if="!adviceEditing"
+              size="small"
+              @click="startEditAdvice"
+            >
+              编辑建议
+            </el-button>
+            <el-button
+              v-if="adviceEditing"
+              type="primary"
+              size="small"
+              :loading="adviceSaving"
+              @click="saveEditedAdvice"
+            >
+              保存建议
+            </el-button>
+            <el-button
+              v-if="adviceEditing"
+              size="small"
+              @click="cancelEditAdvice"
+            >
+              取消
+            </el-button>
+            <el-button size="small" @click="copyAdviceText">
+              复制建议全文
+            </el-button>
+            <el-button
+              v-if="aiAdvice && !adviceEditing"
               size="small"
               @click="resetFutureAdvice"
             >
@@ -142,6 +183,7 @@
             <span v-if="aiAdvice" class="ai-advice-tip">
               已保存 · {{ studentInfo.name || '该生' }}
               <template v-if="aiAdvice.source === 'fallback'">（规则兜底）</template>
+              <template v-else-if="aiAdvice.source === 'manual'">（手动编辑）</template>
             </span>
           </div>
         </div>
@@ -156,7 +198,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElLoading } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
 import { getStudentReportData } from '../api/student'
-import { generateStudentFutureAdvice, getStudentFutureAdvice, deleteStudentFutureAdvice } from '../api/admin'
+import { generateStudentFutureAdvice, getStudentFutureAdvice, deleteStudentFutureAdvice, updateStudentFutureAdvice } from '../api/admin'
 import { useAuth } from '../stores/auth'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
@@ -178,6 +220,21 @@ const selectedTemplate = ref(null)
 const loading = ref(true)
 const aiAdvice = ref(null)
 const adviceLoading = ref(false)
+const adviceEditing = ref(false)
+const adviceSaving = ref(false)
+const adviceDraft = ref({
+  career: '',
+  furtherStudy: '',
+  employment: '',
+  personal: ''
+})
+
+const adviceEditFields = [
+  { key: 'career', label: '职业发展建议' },
+  { key: 'furtherStudy', label: '继续深造建议' },
+  { key: 'employment', label: '就业指导建议' },
+  { key: 'personal', label: '个人发展建议' }
+]
 
 const defaultFutureAdviceItems = () => ([
   { label: '职业发展建议', value: '根据您的专业背景，建议关注相关行业动态，持续提升专业技能。' },
@@ -686,9 +743,78 @@ const resetFutureAdvice = async () => {
         : studentId
     })
     aiAdvice.value = null
+    adviceEditing.value = false
     ElMessage.success('已清除保存的建议，恢复默认文案')
   } catch (e) {
     ElMessage.error(e?.message || '清除失败')
+  }
+}
+
+const fillAdviceDraftFromCurrent = () => {
+  const items = futureAdviceItems.value || []
+  const byLabel = Object.fromEntries(items.map(i => [i.label, i.value || '']))
+  adviceDraft.value = {
+    career: aiAdvice.value?.career || byLabel['职业发展建议'] || '',
+    furtherStudy: aiAdvice.value?.furtherStudy || byLabel['继续深造建议'] || '',
+    employment: aiAdvice.value?.employment || byLabel['就业指导建议'] || '',
+    personal: aiAdvice.value?.personal || byLabel['个人发展建议'] || ''
+  }
+}
+
+const startEditAdvice = () => {
+  fillAdviceDraftFromCurrent()
+  adviceEditing.value = true
+}
+
+const cancelEditAdvice = () => {
+  adviceEditing.value = false
+}
+
+const saveEditedAdvice = async () => {
+  const studentId = studentInfo.value.studentId || resolveStudentId()
+  if (!studentId) {
+    ElMessage.warning('无法获取学号')
+    return
+  }
+  adviceSaving.value = true
+  try {
+    const res = await updateStudentFutureAdvice({
+      studentId,
+      userRole: isAdmin.value ? 'admin' : 'student',
+      userId: isAdmin.value
+        ? (auth.state.user?.username || 'admin')
+        : studentId,
+      career: adviceDraft.value.career,
+      furtherStudy: adviceDraft.value.furtherStudy,
+      employment: adviceDraft.value.employment,
+      personal: adviceDraft.value.personal
+    })
+    if (res.code === 200 && res.data) {
+      aiAdvice.value = res.data
+      adviceEditing.value = false
+      ElMessage.success('建议已保存')
+    } else {
+      ElMessage.error(res.message || '保存失败')
+    }
+  } catch (e) {
+    ElMessage.error(e?.message || '保存失败')
+  } finally {
+    adviceSaving.value = false
+  }
+}
+
+const copyAdviceText = async () => {
+  const items = adviceEditing.value
+    ? adviceEditFields.map(f => ({ label: f.label, value: adviceDraft.value[f.key] }))
+    : futureAdviceItems.value
+  const text = (items || [])
+    .map(i => `${i.label}：${i.value || ''}`)
+    .join('\n\n')
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success('已复制建议全文')
+  } catch {
+    ElMessage.error('复制失败，请手动选择文本')
   }
 }
 
@@ -1225,6 +1351,12 @@ watch(
   flex-direction: column;
   gap: 8px;
   align-items: flex-start;
+}
+
+.advice-edit-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
 }
 
 .ai-advice-tip {
