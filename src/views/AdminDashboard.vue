@@ -8,7 +8,7 @@
     </header>
     
     <div class="quick-stats">
-      <el-card class="stat-card clickable" shadow="hover" @click="goToPage('/admin/batch')" @mousemove="handleCardMouseMove" @mouseleave="handleCardMouseLeave">
+      <el-card class="stat-card clickable" shadow="hover" @click="goToPage('/admin/batch')" @mousemove="handleCardMouseMove" @mouseleave="handleCardMouseLeave" v-if="hasPermission('batch')">
         <div class="light-mask"></div>
         <div class="stat-icon-wrap" style="background: #eef2ff;">
           <span class="stat-icon" style="color: #667eea;">📊</span>
@@ -19,7 +19,7 @@
         </div>
         <div class="stat-arrow">→</div>
       </el-card>
-      <el-card class="stat-card clickable" shadow="hover" @click="goToPage('/admin/student')" @mousemove="handleCardMouseMove" @mouseleave="handleCardMouseLeave">
+      <el-card class="stat-card clickable" shadow="hover" @click="goToPage('/admin/student')" @mousemove="handleCardMouseMove" @mouseleave="handleCardMouseLeave" v-if="hasPermission('student')">
         <div class="light-mask"></div>
         <div class="stat-icon-wrap" style="background: #fdf2f8;">
           <span class="stat-icon" style="color: #ec4899;">👥</span>
@@ -30,7 +30,7 @@
         </div>
         <div class="stat-arrow">→</div>
       </el-card>
-      <el-card class="stat-card clickable" shadow="hover" @click="goToPage('/admin/template')" @mousemove="handleCardMouseMove" @mouseleave="handleCardMouseLeave">
+      <el-card class="stat-card clickable" shadow="hover" @click="goToPage('/admin/template')" @mousemove="handleCardMouseMove" @mouseleave="handleCardMouseLeave" v-if="hasPermission('template')">
         <div class="light-mask"></div>
         <div class="stat-icon-wrap" style="background: #eff6ff;">
           <span class="stat-icon" style="color: #3b82f6;">📄</span>
@@ -41,7 +41,7 @@
         </div>
         <div class="stat-arrow">→</div>
       </el-card>
-      <el-card class="stat-card clickable" shadow="hover" @click="goToPage('/admin/message')" @mousemove="handleCardMouseMove" @mouseleave="handleCardMouseLeave">
+      <el-card class="stat-card clickable" shadow="hover" @click="goToPage('/admin/message')" @mousemove="handleCardMouseMove" @mouseleave="handleCardMouseLeave" v-if="hasPermission('message')">
         <div class="light-mask"></div>
         <div class="stat-icon-wrap" style="background: #f0fdf4;">
           <span class="stat-icon" style="color: #22c55e;">💬</span>
@@ -152,9 +152,11 @@ import { getAllBatch } from '../api/batch'
 import { getAllStudents, getDashboardStudentList, getStudentYears } from '../api/student'
 import { getTemplateList } from '../api/template'
 import { getProvinceStats } from '../api/destination'
-import { getPendingMessageCount } from '../api/admin'
+import { getPendingMessageCount, getAdminPermissions } from '../api/admin'
+import { useAuth } from '../stores/auth'
 
 const router = useRouter()
+const auth = useAuth()
 const loading = ref(false)
 const years = ref([2024])
 const selectedYear = ref(2024)
@@ -165,6 +167,13 @@ const stats = ref({
   totalTemplates: 0,
   pendingMessages: 0
 })
+
+const userPermissions = ref([])
+
+const hasPermission = (module) => {
+  if (auth.state.role?.toUpperCase() === 'ADMIN') return true
+  return userPermissions.value.some(p => p.module === module)
+}
 
 const activities = ref([])
 const provinceData = ref([])
@@ -547,8 +556,22 @@ const fetchAllData = async () => {
   })
 }
 
+const fetchUserPermissions = async () => {
+  const userId = auth.state.user?.id
+  if (!userId) return
+  try {
+    const res = await getAdminPermissions(userId)
+    if (res.code === 200) {
+      userPermissions.value = res.data || []
+    }
+  } catch (e) {
+    console.error('获取权限失败:', e)
+  }
+}
+
 onMounted(() => {
   fetchAllData()
+  fetchUserPermissions()
   const logTimer = setInterval(() => {
     fetchRecentLogs()
   }, 5000)

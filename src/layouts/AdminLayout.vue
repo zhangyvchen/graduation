@@ -19,56 +19,56 @@
           @mousemove="handleMenuMouseMove"
           @mouseleave="handleMenuMouseLeave"
         >
-          <el-menu-item index="/admin/dashboard" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+          <el-menu-item index="/admin/dashboard" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('dashboard')">
             <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">🏠</span>
             </template>
             <template #title>管理首页</template>
           </el-menu-item>
-          <el-menu-item index="/admin/batch" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+          <el-menu-item index="/admin/batch" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('batch')">
             <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">📋</span>
             </template>
             <template #title>批次管理</template>
           </el-menu-item>
-          <el-menu-item index="/admin/student" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+          <el-menu-item index="/admin/student" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('student')">
             <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">👥</span>
             </template>
             <template #title>名单管理</template>
           </el-menu-item>
-          <el-menu-item index="/admin/statistics" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+          <el-menu-item index="/admin/statistics" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('statistics')">
             <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">📈</span>
             </template>
             <template #title>数据统计</template>
           </el-menu-item>
-          <el-menu-item index="/admin/template" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+          <el-menu-item index="/admin/template" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('template')">
             <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">📝</span>
             </template>
             <template #title>报告模板配置</template>
           </el-menu-item>
-          <el-menu-item index="/admin/verify" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+          <el-menu-item index="/admin/verify" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('verify')">
             <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">✅</span>
             </template>
             <template #title>核销管理</template>
           </el-menu-item>
-          <el-menu-item index="/admin/import" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+          <el-menu-item index="/admin/import" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('import')">
             <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">📥</span>
             </template>
             <template #title>数据导入</template>
           </el-menu-item>
-          <el-menu-item index="/admin/message" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" class="menu-item-with-badge">
+          <el-menu-item index="/admin/message" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" class="menu-item-with-badge" v-if="hasPermission('message')">
             <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">💬</span>
@@ -78,20 +78,27 @@
               {{ pendingMessageCount > 99 ? '99+' : pendingMessageCount }}
             </span>
           </el-menu-item>
-          <el-menu-item index="/admin/ai" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+          <el-menu-item index="/admin/permission" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('permission')">
+            <div class="light-mask"></div>
+            <template #icon>
+              <span class="menu-icon">🔑</span>
+            </template>
+            <template #title>权限管理</template>
+          </el-menu-item>
+          <el-menu-item index="/admin/ai" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('ai')">
             <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">🤖</span>
             </template>
             <template #title>AI 助手</template>
           </el-menu-item>
-          <el-menu-item index="/admin/ai-history">
+          <el-menu-item index="/admin/ai-history" v-if="hasPermission('ai')">
             <template #icon>
               <span class="menu-icon">📋</span>
             </template>
             <template #title>AI 历史</template>
           </el-menu-item>
-          <el-menu-item index="/admin/ai-risk">
+          <el-menu-item index="/admin/ai-risk" v-if="hasPermission('ai')">
             <template #icon>
               <span class="menu-icon">🛡️</span>
             </template>
@@ -106,6 +113,7 @@
           <div class="footer-buttons">
             <el-button @click="goToHome">返回首页</el-button>
             <el-button @click="showChangePasswordDialog = true">修改密码</el-button>
+            <el-button @click="openSwitchAccount">切换账号</el-button>
             <el-button type="danger" @click="handleLogout">退出登录</el-button>
           </div>
         </div>
@@ -137,6 +145,60 @@
         <el-button type="primary" @click="handleChangePassword" :loading="isChanging">确认修改</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog title="切换管理员账号" v-model="showSwitchDialog" width="560px" :close-on-click-modal="false" class="switch-account-dialog">
+      <div v-if="!selectedAdmin" class="admin-list">
+        <div class="list-tip">请选择要切换到的管理员账号：</div>
+        <div 
+          v-for="admin in adminList" 
+          :key="admin.id" 
+          class="admin-item"
+          :class="{ current: auth.state.user && admin.username === auth.state.user.username }"
+          @click="selectAdmin(admin)"
+          @mousemove="handleAdminItemMouseMove"
+          @mouseleave="handleAdminItemMouseLeave"
+        >
+          <div class="light-mask"></div>
+          <div class="admin-avatar">
+            <span>👤</span>
+          </div>
+          <div class="admin-info">
+            <div class="admin-name">{{ admin.name }}</div>
+            <div class="admin-username">@{{ admin.username }}</div>
+          </div>
+          <div class="admin-right">
+            <div class="admin-role-tag">
+              <el-tag size="small" :type="admin.role === 'ADMIN' ? 'primary' : 'info'">
+                {{ getRoleLabel(admin.role) }}
+              </el-tag>
+            </div>
+            <div v-if="auth.state.user && admin.username === auth.state.user.username" class="current-badge">当前</div>
+          </div>
+        </div>
+      </div>
+      <div v-else-if="selectedAdmin" class="selected-admin-card">
+        <div class="back-btn" @click="selectedAdmin = null">← 返回选择</div>
+        <div class="selected-info">
+          <div class="selected-avatar">
+            <span>👤</span>
+          </div>
+          <div class="selected-details">
+            <div class="selected-name">{{ selectedAdmin.name }}</div>
+            <div class="selected-username">@{{ selectedAdmin.username }}</div>
+            <div class="selected-role">
+              <el-tag :type="selectedAdmin.role === 'ADMIN' ? 'primary' : 'info'" size="small">
+                {{ getRoleLabel(selectedAdmin.role) }}
+              </el-tag>
+            </div>
+          </div>
+        </div>
+        <div class="switch-tip">请确认切换到该管理员账号</div>
+      </div>
+      <template #footer v-if="selectedAdmin">
+        <el-button @click="selectedAdmin = null">取消</el-button>
+        <el-button type="primary" @click="handleSwitchAccount" :loading="isSwitching" class="switch-confirm-btn">确认切换</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -145,7 +207,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuth } from '../stores/auth'
-import { changePassword, getPendingMessageCount } from '../api/admin'
+import { changePassword, getPendingMessageCount, getAdminList, login, getAdminPermissions } from '../api/admin'
 
 const router = useRouter()
 const auth = useAuth()
@@ -156,6 +218,13 @@ const toggleTop = ref(50)
 const isDragging = ref(false)
 const dragStartY = ref(0)
 const dragStartTop = ref(0)
+
+const userPermissions = ref([])
+
+const hasPermission = (module) => {
+  if (auth.state.role?.toUpperCase() === 'ADMIN') return true
+  return userPermissions.value.some(p => p.module === module)
+}
 
 const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value
@@ -206,9 +275,23 @@ const refreshPendingCount = async () => {
     if (res.code === 200) pendingMessageCount.value = res.data || 0
   } catch (e) { /* 忽略 */ }
 }
+const fetchUserPermissions = async () => {
+  const userId = auth.state.user?.id
+  if (!userId) return
+  try {
+    const res = await getAdminPermissions(userId)
+    if (res.code === 200) {
+      userPermissions.value = res.data || []
+    }
+  } catch (e) {
+    console.error('获取权限失败:', e)
+  }
+}
+
 onMounted(() => {
   refreshPendingCount()
   pollTimer = setInterval(refreshPendingCount, 30000)
+  fetchUserPermissions()
 })
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
@@ -223,7 +306,7 @@ const handleMenuItemMouseMove = (e) => {
   const isActive = menuItem.classList.contains('is-active')
   const bg = isActive 
     ? 'radial-gradient(circle, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.2) 40%, rgba(255,255,255,0) 70%)'
-    : 'radial-gradient(circle, rgba(182, 221, 220, 0.4) 0%, rgba(182, 221, 220, 0.1) 40%, rgba(182, 221, 220, 0) 70%)'
+    : 'radial-gradient(circle, rgba(72, 202, 228, 0.4) 0%, rgba(72, 202, 228, 0.1) 40%, rgba(72, 202, 228, 0) 70%)'
   
   mask.style.background = bg
   mask.style.opacity = '1'
@@ -282,6 +365,71 @@ const handleChangePassword = async () => {
   } finally {
     isChanging.value = false
   }
+}
+
+const showSwitchDialog = ref(false)
+const adminList = ref([])
+const selectedAdmin = ref(null)
+const isSwitching = ref(false)
+const switchForm = ref({
+  password: ''
+})
+
+const getRoleLabel = (role) => {
+  const roleMap = {
+    'ADMIN': '超级管理员',
+    'ASSISTANT': '协助管理员',
+    'assistant': '协助管理员'
+  }
+  return roleMap[role] || role || '管理员'
+}
+
+const openSwitchAccount = async () => {
+  showSwitchDialog.value = true
+  selectedAdmin.value = null
+  switchForm.value.password = ''
+  try {
+    const res = await getAdminList()
+    if (res.code === 200) {
+      adminList.value = res.data || []
+    }
+  } catch (e) {
+    ElMessage.error('获取管理员列表失败')
+  }
+}
+
+const selectAdmin = (admin) => {
+  if (auth.state.user && admin.username === auth.state.user.username) {
+    ElMessage.info('当前已登录该账号')
+    return
+  }
+  selectedAdmin.value = admin
+  switchForm.value.password = ''
+}
+
+const handleAdminItemMouseMove = (e) => {
+  const item = e.currentTarget
+  const mask = item.querySelector('.light-mask')
+  if (!mask) return
+  const rect = item.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  mask.style.left = `${x}px`
+  mask.style.top = `${y}px`
+  mask.style.opacity = '1'
+}
+
+const handleAdminItemMouseLeave = (e) => {
+  const item = e.currentTarget
+  const mask = item.querySelector('.light-mask')
+  if (!mask) return
+  mask.style.opacity = '0'
+}
+
+const handleSwitchAccount = async () => {
+  auth.logout()
+  showSwitchDialog.value = false
+  router.push(`/admin/login?username=${encodeURIComponent(selectedAdmin.value.username)}`)
 }
 </script>
 
@@ -373,7 +521,7 @@ const handleChangePassword = async () => {
   width: 200px;
   height: 200px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(182, 221, 220, 0.4) 0%, rgba(182, 221, 220, 0.1) 40%, rgba(182, 221, 220, 0) 70%);
+  background: radial-gradient(circle, rgba(72, 202, 228, 0.4) 0%, rgba(72, 202, 228, 0.1) 40%, rgba(72, 202, 228, 0) 70%);
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.3s ease, background 0.3s ease;
@@ -583,6 +731,219 @@ const handleChangePassword = async () => {
 
 .sidebar::-webkit-scrollbar-thumb:hover {
   background: #B6DDDC;
+}
+
+.switch-account-dialog :deep(.el-dialog__header) {
+  background: linear-gradient(135deg, #EDF5F3 0%, #F8FAF9 100%);
+  padding: 18px 24px;
+  border-bottom: 1px solid #E8EEED;
+}
+
+.switch-account-dialog :deep(.el-dialog__title) {
+  color: #2D5A7A;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.switch-account-dialog :deep(.el-dialog__body) {
+  padding: 20px 24px;
+}
+
+.switch-account-dialog :deep(.el-dialog__footer) {
+  padding: 16px 24px;
+  border-top: 1px solid #E8EEED;
+}
+
+.admin-list .list-tip {
+  font-size: 14px;
+  color: #5A7A96;
+  margin-bottom: 16px;
+}
+
+.admin-item {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 8px;
+  position: relative;
+  overflow: hidden;
+  background: #F8FAF9;
+  border: 1px solid #EDF5F3;
+}
+
+.admin-item:hover {
+  transform: translateX(4px);
+  background: #EDF5F3;
+  border-color: #B6DDDC;
+}
+
+.admin-item.current {
+  cursor: default;
+  background: #EDF5F3;
+  border-color: #B6DDDC;
+}
+
+.admin-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #B6DDDC 0%, #A3D4D2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  margin-right: 14px;
+  flex-shrink: 0;
+}
+
+.admin-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: #2D5A7A;
+  margin-bottom: 3px;
+}
+
+.admin-username {
+  font-size: 12px;
+  color: #8BA4C4;
+}
+
+.admin-right {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-role-tag {
+  flex-shrink: 0;
+}
+
+.current-badge {
+  background: #B6DDDC;
+  color: #2D5A7A;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.admin-item .light-mask {
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(182, 221, 220, 0.6) 0%, rgba(182, 221, 220, 0.25) 30%, rgba(182, 221, 220, 0.1) 50%, rgba(182, 221, 220, 0) 70%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  transform: translate(-50%, -50%);
+  left: 0;
+  top: 0;
+  z-index: 0;
+  will-change: left, top, opacity;
+}
+
+.admin-item .admin-avatar,
+.admin-item .admin-info,
+.admin-item .admin-right {
+  position: relative;
+  z-index: 1;
+}
+
+.selected-admin-card {
+  background: #F8FAF9;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #5A7A96;
+  cursor: pointer;
+  margin-bottom: 14px;
+  transition: color 0.2s ease;
+}
+
+.back-btn:hover {
+  color: #2D5A7A;
+}
+
+.selected-info {
+  display: flex;
+  align-items: center;
+}
+
+.selected-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #B6DDDC 0%, #A3D4D2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  margin-right: 16px;
+}
+
+.selected-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: #2D5A7A;
+  margin-bottom: 4px;
+}
+
+.selected-username {
+  font-size: 13px;
+  color: #8BA4C4;
+  margin-bottom: 8px;
+}
+
+.selected-role {
+  margin-top: 4px;
+}
+
+.switch-tip {
+  text-align: center;
+  font-size: 13px;
+  color: #8BA4C4;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #E8EEED;
+}
+
+.switch-confirm-btn {
+  background: #B6DDDC !important;
+  border-color: #B6DDDC !important;
+  color: #2D5A7A !important;
+}
+
+.switch-confirm-btn:hover {
+  background: #A3D4D2 !important;
+  border-color: #A3D4D2 !important;
+}
+
+.switch-account-dialog :deep(.el-dialog__headerbtn .el-dialog__close) {
+  font-size: 18px;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.switch-account-dialog :deep(.el-dialog__headerbtn:hover .el-dialog__close) {
+  transform: rotate(180deg);
+  color: #F56C6C;
 }
 
 </style>
