@@ -92,13 +92,15 @@
             </template>
             <template #title>AI 助手</template>
           </el-menu-item>
-          <el-menu-item index="/admin/ai-history" v-if="hasPermission('ai')">
+          <el-menu-item index="/admin/ai-history" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('ai')">
+            <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">📋</span>
             </template>
             <template #title>AI 历史</template>
           </el-menu-item>
-          <el-menu-item index="/admin/ai-risk" v-if="hasPermission('ai')">
+          <el-menu-item index="/admin/ai-risk" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('ai')">
+            <div class="light-mask"></div>
             <template #icon>
               <span class="menu-icon">🛡️</span>
             </template>

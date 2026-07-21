@@ -10,7 +10,15 @@ const request = axios.create({
 })
 
 request.interceptors.request.use(config => {
-  const token = localStorage.getItem('token') || localStorage.getItem('student_token')
+  const pathname = window.location.pathname
+  let token
+  // 根据当前路由决定用哪个 token，避免 admin token 污染学生请求
+  if (pathname.startsWith('/student') || config.url?.includes('/student/')) {
+    token = localStorage.getItem('student_token')
+  } else {
+    // 管理端用 token 键
+    token = localStorage.getItem('token')
+  }
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`
   }
