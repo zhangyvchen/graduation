@@ -492,6 +492,16 @@ export function useAiChat(options = {}) {
           if (aiMsgIndex !== -1) {
             messages.value[aiMsgIndex].content = tip
           }
+        },
+        onError: (err) => {
+          const tip = err?.message || 'AI 服务异常，请稍后重试'
+          const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
+          if (aiMsgIndex !== -1) {
+            messages.value[aiMsgIndex].content = tip.startsWith('服务器错误')
+              ? tip
+              : `AI 服务异常：${tip}`
+          }
+          onError?.(err)
         }
       })
       if (id.userRole !== 'guest') {
