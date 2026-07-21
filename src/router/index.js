@@ -117,6 +117,11 @@ const routes = [
         component: () => import('../views/AdminMessage.vue')
       },
       {
+        path: 'permission',
+        name: 'AdminPermission',
+        component: () => import('../views/AdminPermission.vue')
+      },
+      {
         path: 'report/:year',
         name: 'AdminReport',
         component: () => import('../views/AdminReport.vue')
@@ -173,12 +178,8 @@ router.beforeEach((to, from, next) => {
       return
     }
 
-    if (to.meta.role && currentRole !== to.meta.role.toUpperCase()) {
-      if (currentRole === 'ADMIN') {
-        next('/admin/dashboard')
-      } else {
-        next('/')
-      }
+    if (to.meta.role && !['ADMIN', 'ASSISTANT'].includes(currentRole) && currentRole !== to.meta.role.toUpperCase()) {
+      next('/')
       return
     }
   }
@@ -209,6 +210,17 @@ router.beforeEach((to, from, next) => {
   if (auth.state.isLoggedIn && currentRole === 'ADMIN') {
     if (to.path === '/login') {
       next('/admin/dashboard')
+      return
+    }
+  }
+
+  if (auth.state.isLoggedIn && currentRole === 'ASSISTANT') {
+    if (to.path === '/login') {
+      next('/admin/dashboard')
+      return
+    }
+    if (to.path.startsWith('/admin')) {
+      next()
       return
     }
   }

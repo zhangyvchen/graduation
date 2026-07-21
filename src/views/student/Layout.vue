@@ -81,6 +81,7 @@
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="password">修改密码</el-dropdown-item>
+                <el-dropdown-item command="admin" divided v-if="isAdminRole">管理后台</el-dropdown-item>
                 <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -133,6 +134,10 @@ const passwordDialog = ref(false)
 const passwordForm = ref({ oldPassword: '', newPassword: '', confirmPassword: '' })
 
 const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
+
+const isAdminRole = computed(() => {
+  return auth.state.role === 'ADMIN' || auth.state.role === 'ASSISTANT'
+})
 
 const activeMenu = computed(() => route.path)
 
@@ -198,6 +203,8 @@ const handleCommand = async (cmd) => {
   if (cmd === 'password') {
     passwordForm.value = {oldPassword: '', newPassword: '', confirmPassword: ''}
     passwordDialog.value = true
+  } else if (cmd === 'admin') {
+    router.push('/admin/dashboard')
   } else if (cmd === 'logout') {
     await ElMessageBox.confirm('确定退出登录?', '提示', {type: 'warning'})
     localStorage.removeItem('student_token')
