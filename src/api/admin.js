@@ -253,6 +253,14 @@ export function deleteStudentFutureAdvice(params) {
   })
 }
 
+export function updateStudentFutureAdvice(data) {
+  return request({
+    url: '/ai/student-future-advice',
+    method: 'put',
+    data
+  })
+}
+
 export function generatePeriodBrief(data) {
   return request({
     url: '/ai/period-brief',
