@@ -7,6 +7,10 @@
             <span>📈 历年GPA趋势</span>
           </template>
           <div ref="trendChart" style="height: 320px"></div>
+          <div class="chart-tip" v-if="hasSynthetic">
+            <el-icon><InfoFilled /></el-icon>
+            <span>缺失年份为基于历年走势生成的参考数据</span>
+          </div>
         </el-card>
       </el-col>
       <el-col :span="10">
@@ -71,11 +75,13 @@ import { getMyGrades } from '@/api/student'
 
 const grade = ref({})
 const trendChart = ref()
+const hasSynthetic = ref(false)
 
 onMounted(async () => {
   const res = await getMyGrades()
   if (res.code === 200) {
     grade.value = res.data
+    hasSynthetic.value = !!res.data.hasSynthetic
     await nextTick()
     renderChart()
   }
@@ -87,19 +93,48 @@ const renderChart = () => {
   const trend = grade.value.gpaTrend || []
   chart.setOption({
     tooltip: { trigger: 'axis' },
+    grid: { left: 40, right: 20, top: 20, bottom: 30 },
     xAxis: {
       type: 'category',
-      data: trend.map(t => t.year + '年')
+      data: trend.map(t => t.year + '年'),
+      axisLine: { lineStyle: { color: '#cbd5e1' } },
+      axisLabel: { color: '#64748b' }
     },
-    yAxis: { type: 'value', min: 0, max: 4 },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      max: 4,
+      splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } },
+      axisLabel: { color: '#64748b' }
+    },
     series: [{
       data: trend.map(t => t.gpa),
       type: 'line',
       smooth: true,
-      itemStyle: { color: '#409eff' },
-      areaStyle: { color: 'rgba(64,158,255,0.2)' }
+      symbol: 'circle',
+      symbolSize: 9,
+      itemStyle: { color: '#0ea5e9', borderColor: '#fff', borderWidth: 2 },
+      lineStyle: { width: 3, color: '#0ea5e9' },
+      areaStyle: {
+        color: {
+          type: 'linear',
+          x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color: 'rgba(14,165,233,0.35)' },
+            { offset: 1, color: 'rgba(16,185,129,0.05)' }
+          ]
+        }
+      },
+      label: {
+        show: true,
+        position: 'top',
+        color: '#0369a1',
+        fontWeight: 600,
+        formatter: '{c}'
+      }
     }]
   })
+  window.addEventListener('resize', () => chart.resize())
 }
 </script>
 
@@ -111,4 +146,13 @@ const renderChart = () => {
 .overview-value { font-size: 28px; font-weight: bold; color: #303133; margin-top: 8px; }
 .overview-value.has-fail { color: #f56c6c; }
 .fail-score { color: #f56c6c; font-weight: bold; }
+.chart-tip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+.chart-tip .el-icon { color: #0ea5e9; }
 </style>

@@ -23,16 +23,13 @@
             初始密码为<strong>123456</strong>，首次登录请及时修改
           </el-alert>
         </div>
-        <div class="login-footer">
-          <a href="/">返回首页</a>
-        </div>
       </el-form>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { studentLogin } from '@/api/student'
@@ -44,9 +41,19 @@ const auth = useAuth()
 const formRef = ref()
 const loading = ref(false)
 
+const REMEMBER_KEY = 'student_remember_id'
+
 const form = reactive({
   studentId: '',
   password: ''
+})
+
+onMounted(() => {
+  // 记忆上次登录的学号（仅本地存储,不存密码）
+  const remembered = localStorage.getItem(REMEMBER_KEY)
+  if (remembered) {
+    form.studentId = remembered
+  }
 })
 
 const rules = {
@@ -60,8 +67,11 @@ const handleLogin = async () => {
   try {
     const res = await studentLogin(form)
     if (res.code === 200) {
+      // 清理可能残留的管理员 token，避免 admin token 污染学生请求
+      localStorage.removeItem('token')
       localStorage.setItem('student_token', res.data.token)
       localStorage.setItem('student_info', JSON.stringify(res.data))
+      localStorage.setItem(REMEMBER_KEY, form.studentId)
       auth.login(res.data)
       ElMessage.success('登录成功')
       // 首次登录提示改密码
@@ -112,5 +122,6 @@ const handleLogin = async () => {
 .login-header p { color: #909399; margin-top: 8px; }
 .login-tip { margin-top: 20px; }
 .login-footer { text-align: center; margin-top: 20px; }
-.login-footer a { color: #409eff; text-decoration: none; }
+.login-footer .back-home { color: #409eff; text-decoration: none; transition: color 0.2s; }
+.login-footer .back-home:hover { color: #66b1ff; }
 </style>

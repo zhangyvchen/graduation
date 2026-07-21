@@ -194,6 +194,8 @@ const handleLogin = async () => {
 
     if (res.code === 200) {
       const data = res.data
+      // 清理可能残留的管理员 token，避免 student 登录后 admin token 污染学生请求
+      localStorage.removeItem('token')
       localStorage.setItem('student_token', data.token)
       localStorage.setItem('student_id', data.studentId)
 
