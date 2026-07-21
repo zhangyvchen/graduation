@@ -405,12 +405,18 @@ export function useAiChat(options = {}) {
     roleSwitchHandling = false
   }
 
-  const sendMessage = async (rawContent, yearOverride) => {
+  const sendMessage = async (rawContent, yearOverride, options = {}) => {
     const content = (rawContent ?? inputText.value).trim()
     const imagesToSend = [...pendingImages.value]
     if ((!content && imagesToSend.length === 0) || isStreaming.value) return
 
-    if (imagesToSend.length > 0 && !visionEnabled.value) {
+    const modelForRequest = (options && options.model) || selectedModel.value || undefined
+    const modelMeta = modelOptions.value.find(m => m.id === modelForRequest)
+    const requestSupportsVision = modelMeta
+      ? !!modelMeta.vision
+      : !!(modelForRequest && /v|vision/i.test(modelForRequest))
+
+    if (imagesToSend.length > 0 && !requestSupportsVision) {
       onError?.(new Error('当前模型不支持识图'))
       onRiskBlocked?.({
         message: '当前模型不支持识图，请切换到「GLM-4.6V」后再上传图片'
@@ -468,7 +474,7 @@ export function useAiChat(options = {}) {
         userRole: id.userRole,
         sessionId,
         images: imagesToSend,
-        model: selectedModel.value || undefined,
+        model: modelForRequest,
         signal: abortController.signal,
         onChunk: (chunk) => {
           if (!alive) return
@@ -540,6 +546,12 @@ export function useAiChat(options = {}) {
     if (!visionEnabled.value && pendingImages.value.length) {
       pendingImages.value = []
     }
+  }
+
+  /** 解析可用的识图/出图模型（优先配置里 vision=true，否则 glm-4.6v） */
+  const resolveVisionModelId = () => {
+    const hit = modelOptions.value.find(m => m.vision)
+    return hit?.id || 'glm-4.6v'
   }
 
   const loadModels = async () => {
@@ -623,6 +635,7 @@ export function useAiChat(options = {}) {
     initIdentityTracking,
     loadModels,
     setSelectedModel,
+    resolveVisionModelId,
     loadChatHistory,
     loadSessions,
     createSession,

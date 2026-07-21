@@ -212,10 +212,12 @@ server: {
 | 异常 / 词库 | 异常表、自定义危险词 | `/admin/ai-risk` |
 | 聊天历史管理 | `/ai/messages/manage` 等 | `/admin/ai-history` |
 | 一键周报 / 月报 | `/ai/period-brief` + PDF 导出 | `AdminAI` → `PeriodBriefDialog` |
-| 未来建议 | `/ai/student-future-advice` | 管理端 / 学生端报告页按钮 |
+| 未来建议 | `/ai/student-future-advice`（生成/编辑/清除） | 管理端 / 学生端报告页 |
+| 学生快捷问 | 按角色切换：画像解读、优势短板、就业升学、同窗对比 | `AIFloatButton`（学生登录） |
+| 同窗对比问答 | AI 上下文注入匿名均值/排名（复用 comparison） | 学生快捷问「同窗对比」 |
 | 数据解说 | 前端规则模板 `storyGenerator.js` | 成长轨迹 / 去向 / 学习画像 |
 
-两处 AI 界面共用 `useAiChat`，UI 各自独立：前者是全局助手，后者是后台工作台。
+两处 AI 界面共用 `useAiChat`，UI 各自独立：前者是全局助手，后者是后台工作台。学生登录后快捷词与管理员不同。
 
 ## 技术说明
 
@@ -240,3 +242,4 @@ server: {
 | 2026-07 | AI 风控页 + 发送预检 | 对接异常表与危险词管理 |
 | 2026-07 | `ChatRichBody` + 模型切换 | 图表块渲染、识图/纯文本切换 |
 | 2026-07 | 周报月报弹窗 + 未来建议 | 对接 `period-brief` / `student-future-advice` |
+| 2026-07 | 学生端快捷场景 + 建议编辑 | 角色分流快捷问；报告页编辑/复制建议 |

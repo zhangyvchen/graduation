@@ -156,11 +156,12 @@
           <div class="quick-actions">
             <button 
               v-for="action in quickActions" 
-              :key="action.text"
+              :key="action.label"
               class="quick-action-btn"
-              @click="sendQuickAction(action.text)"
+              :title="action.forceVision ? `${action.label}（自动使用出图模型）` : action.label"
+              @click="sendQuickAction(action)"
             >
-              {{ action.text }}
+              {{ action.label }}
             </button>
           </div>
         </div>
@@ -206,12 +207,14 @@ const {
   inputText,
   isLoading,
   isStreaming,
+  identity,
   formatTime,
   pendingImages,
   modelOptions,
   selectedModel,
   visionEnabled,
   setSelectedModel,
+  resolveVisionModelId,
   setAlive,
   initIdentityTracking,
   createSession,
@@ -225,6 +228,51 @@ const {
   onRiskBlocked: ({ message }) => {
     ElMessage.warning(message || '检测到敏感内容，已拦截并记录')
   }
+})
+
+const ADMIN_QUICK_ACTIONS = [
+  { label: '就业分析', prompt: '请根据本届毕业数据做就业分析，给出关键结论与建议。' },
+  { label: '趋势预测', prompt: '请结合近年数据做趋势预测，说明可能变化与关注点。' },
+  { label: '专业建议', prompt: '请从学院专业对比角度给出管理建议。' },
+  { label: '年度报告', prompt: '请帮我梳理一份本届毕业数据年度报告提纲与要点。' }
+]
+
+const CHART_SUFFIX =
+  ' 回答时请先给出简洁文字结论，再附带一个完整的 ```echarts 图表（数据必须来自上下文，禁止编造）。'
+
+const STUDENT_QUICK_ACTIONS = [
+  {
+    label: '解读我的画像',
+    forceVision: true,
+    prompt: '请结合我的个人毕业数据，解读一下我的毕业数据画像，总结关键亮点与特点。' + CHART_SUFFIX
+  },
+  {
+    label: '优势和短板',
+    forceVision: true,
+    prompt: '请根据我的个人数据，分析我的优势和短板各有哪些，并给出可改进的具体方向。' + CHART_SUFFIX
+  },
+  {
+    label: '就业升学决策',
+    forceVision: true,
+    prompt: '请基于我的个人去向与学习画像，对比「直接就业」和「继续升学」两条路径：分别说明适配度、主要风险、以及我下一步最该做的 3 件具体事。要求分条、可执行，少鸡汤，不要编造我数据中没有的公司或薪资。' + CHART_SUFFIX
+  },
+  {
+    label: '同窗对比',
+    forceVision: true,
+    prompt: '请结合数据说明我和同专业、同班同学相比怎么样，只谈均值、排名和百分位等匿名指标，不要涉及其他同学的姓名或学号等隐私。' + CHART_SUFFIX
+  }
+]
+
+const GUEST_QUICK_ACTIONS = [
+  { label: '就业概况', prompt: '请介绍一下本校毕业生就业与升学的总体情况。' },
+  { label: '如何使用', prompt: '请介绍你能帮我做什么，以及登录学生账号后有哪些个性化能力。' }
+]
+
+const quickActions = computed(() => {
+  const role = identity.value?.userRole
+  if (role === 'admin') return ADMIN_QUICK_ACTIONS
+  if (role === 'student') return STUDENT_QUICK_ACTIONS
+  return GUEST_QUICK_ACTIONS
 })
 
 const onFloatPickImages = async (e) => {
@@ -266,13 +314,6 @@ const viewport = ref({
   width: window.innerWidth,
   height: window.innerHeight
 })
-
-const quickActions = ref([
-  { text: '就业分析' },
-  { text: '趋势预测' },
-  { text: '专业建议' },
-  { text: '年度报告' }
-])
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 
@@ -565,10 +606,15 @@ const sendMessage = async () => {
   scrollToBottom()
 }
 
-const sendQuickAction = (text) => {
-  if (isStreaming.value) return
-  inputText.value = text
-  sendMessage()
+const sendQuickAction = async (action) => {
+  if (isStreaming.value || !action?.prompt) return
+  const options = {}
+  if (action.forceVision) {
+    options.model = resolveVisionModelId()
+  }
+  scrollToBottom()
+  await sendChatMessage(action.prompt, undefined, options)
+  scrollToBottom()
 }
 
 const clearMemory = async () => {
