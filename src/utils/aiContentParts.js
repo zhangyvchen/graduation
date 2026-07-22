@@ -154,3 +154,31 @@ export function formatTextPart(content) {
     .trim()
   return formatAIContent(cleaned)
 }
+
+/**
+ * 复制用纯文本：去掉 echarts 围栏与常见 Markdown 标记，便于贴进报告/Word
+ */
+export function toPlainAiText(content) {
+  let text = String(content || '')
+    .replace(/\r\n/g, '\n')
+    // 完整或截断的 echarts 代码块
+    .replace(/```\s*echarts[\s\S]*?(```|$)/gi, '')
+    // 其它代码围栏，保留内文
+    .replace(/```[\w]*\s*([\s\S]*?)```/g, '$1')
+    .replace(/```[\w]*\s*([\s\S]*)$/g, '$1')
+
+  const lines = text.split('\n').map((line) => {
+    let s = line.replace(/^[\u200B\uFEFF\u00A0]+/, '')
+    s = s.replace(/^#{1,6}\s*/, '')
+    s = s.replace(/^[-*•]\s+/, '')
+    s = s.replace(/^\d+[\.、]\s+/, '')
+    s = s.replace(/\*\*(.+?)\*\*/g, '$1')
+    s = s.replace(/`([^`]+)`/g, '$1')
+    return s
+  })
+
+  return lines
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
