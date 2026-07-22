@@ -119,7 +119,8 @@ export function useAiChat(options = {}) {
     defaultYear = new Date().getFullYear(),
     onAfterChunk = null,
     onError = null,
-    onRiskBlocked = null
+    onRiskBlocked = null,
+    onStreamEnd = null
   } = options
 
   const { state: authState } = useAuth()
@@ -492,6 +493,16 @@ export function useAiChat(options = {}) {
           if (aiMsgIndex !== -1) {
             messages.value[aiMsgIndex].content = tip
           }
+        },
+        onError: (err) => {
+          const tip = err?.message || 'AI 服务异常，请稍后重试'
+          const aiMsgIndex = messages.value.findIndex(m => m.id === aiMessageId)
+          if (aiMsgIndex !== -1) {
+            messages.value[aiMsgIndex].content = tip.startsWith('服务器错误')
+              ? tip
+              : `AI 服务异常：${tip}`
+          }
+          onError?.(err)
         }
       })
       if (id.userRole !== 'guest') {
@@ -511,7 +522,34 @@ export function useAiChat(options = {}) {
       isLoading.value = false
       isStreaming.value = false
       abortController = null
+      onStreamEnd?.()
     }
+  }
+
+  /** 重新生成最后一条 AI 回复：回退到上一条用户消息并重发 */
+  const regenerateLast = async () => {
+    if (isStreaming.value) return
+    const list = messages.value
+    let lastAi = -1
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].role === 'ai') {
+        lastAi = i
+        break
+      }
+    }
+    if (lastAi <= 0) return
+    let lastUser = -1
+    for (let i = lastAi - 1; i >= 0; i--) {
+      if (list[i].role === 'user') {
+        lastUser = i
+        break
+      }
+    }
+    if (lastUser < 0) return
+    const userMsg = list[lastUser]
+    const prompt = userMsg.content || ''
+    messages.value = list.slice(0, lastUser)
+    await sendMessage(prompt)
   }
 
   const addImages = async (fileList) => {
@@ -643,6 +681,7 @@ export function useAiChat(options = {}) {
     renameSession,
     removeSession,
     sendMessage,
+    regenerateLast,
     addImages,
     removePendingImage,
     clearPendingImages,

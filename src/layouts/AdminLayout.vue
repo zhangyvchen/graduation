@@ -96,7 +96,10 @@
         <span class="toggle-icon">{{ isCollapsed ? '▶' : '◀' }}</span>
       </div>
     </div>
-    <main class="main-content" :class="{ 'sidebar-collapsed': isCollapsed }">
+    <main
+      class="main-content"
+      :class="{ 'sidebar-collapsed': isCollapsed, 'is-flush': isFlushPage }"
+    >
       <router-view />
     </main>
 
@@ -185,6 +188,8 @@ const router = useRouter()
 const auth = useAuth()
 
 const activeMenu = computed(() => router.currentRoute.value.path)
+/** AI 对话页贴边铺满，去掉 main 内边距避免「套一层卡片」 */
+const isFlushPage = computed(() => router.currentRoute.value.path === '/admin/ai')
 const isCollapsed = ref(false)
 const toggleTop = ref(50)
 const isDragging = ref(false)
@@ -700,10 +705,20 @@ const handleSwitchAccount = async () => {
   overflow-y: auto;
   margin-left: 220px;
   transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 0;
+  min-height: 0;
 }
 
 .main-content.sidebar-collapsed {
   margin-left: 0;
+}
+
+.main-content.is-flush {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
 }
 
 .sidebar::-webkit-scrollbar {

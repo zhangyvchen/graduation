@@ -382,13 +382,18 @@ onMounted(() => {
 
 .page-header h2 {
   margin: 0 0 6px;
-  color: #2c3e50;
+  font-size: 20px;
+  font-weight: 600;
+  color: #2d5a7a;
+  line-height: 1.35;
 }
 
 .page-header p {
   margin: 0;
   color: #909399;
   font-size: 13px;
+  line-height: 1.5;
+  font-weight: 400;
 }
 
 .toolbar {

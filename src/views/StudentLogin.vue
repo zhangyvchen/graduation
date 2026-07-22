@@ -214,6 +214,7 @@ const handleLogin = async () => {
         batchYear: data.batchYear,
         major: data.major,
         college: data.college,
+        avatar: data.avatar || '',
         role: 'student'
       }
       localStorage.setItem('student_info', JSON.stringify(userInfo))
