@@ -1,259 +1,95 @@
 <template>
-  <div class="ai-page">
-    <header class="content-header">
-      <h2>AI 助手</h2>
-      <div class="header-actions">
-        <el-button size="small" @click="$router.push('/admin/ai-history')">
-          <el-icon><Document /></el-icon> 历史管理
-        </el-button>
-        <el-button size="small" type="danger" @click="clearChatHistory">
-          <el-icon><Delete /></el-icon> 清除本会话记忆
-        </el-button>
+  <div class="ai-page ai-chat-scope" :class="{ 'sidebar-collapsed': sessionCollapsed }">
+    <aside class="session-sidebar" :aria-hidden="sessionCollapsed">
+      <button type="button" class="new-session-btn" :disabled="isStreaming" @click="handleNewSession">
+        <span class="new-session-icon">+</span>
+        新对话
+      </button>
+
+      <div class="session-list" v-loading="sessionsLoading">
+        <div
+          v-for="s in sessions"
+          :key="s.sessionKey"
+          class="session-item"
+          :class="{ active: s.sessionKey === currentSessionKey }"
+          @click="handleSwitchSession(s.sessionKey)"
+        >
+          <div class="session-title" :title="s.title">{{ s.title || '新对话' }}</div>
+          <div class="session-actions" @click.stop>
+            <button type="button" class="session-action" @click="handleRenameSession(s)">改名</button>
+            <button type="button" class="session-action danger" @click="handleRemoveSession(s)">删除</button>
+          </div>
+        </div>
+        <el-empty v-if="!sessionsLoading && sessions.length === 0" description="暂无会话" :image-size="48" />
       </div>
-    </header>
 
-    <div class="ai-container">
-      <aside class="session-sidebar">
-        <el-button type="primary" class="new-session-btn" @click="handleNewSession" :disabled="isStreaming">
-          + 新对话
-        </el-button>
-        <div class="session-list" v-loading="sessionsLoading">
-          <div
-            v-for="s in sessions"
-            :key="s.sessionKey"
-            class="session-item"
-            :class="{ active: s.sessionKey === currentSessionKey }"
-            @click="handleSwitchSession(s.sessionKey)"
+      <div class="sidebar-foot">
+        <button type="button" class="foot-link" @click="$router.push('/admin/ai-history')">历史管理</button>
+        <button type="button" class="foot-link danger" @click="clearChatHistory">清除记忆</button>
+      </div>
+    </aside>
+
+    <section class="chat-main">
+      <div class="chat-top">
+        <div class="chat-top-meta">
+          <button
+            type="button"
+            class="sidebar-toggle"
+            :title="sessionCollapsed ? '展开会话栏' : '收起会话栏'"
+            :aria-expanded="!sessionCollapsed"
+            @click="sessionCollapsed = !sessionCollapsed"
           >
-            <div class="session-title" :title="s.title">{{ s.title || '新对话' }}</div>
-            <div class="session-actions" @click.stop>
-              <el-button link type="primary" size="small" @click="handleRenameSession(s)">改名</el-button>
-              <el-button link type="danger" size="small" @click="handleRemoveSession(s)">删除</el-button>
-            </div>
-          </div>
-          <el-empty v-if="!sessionsLoading && sessions.length === 0" description="暂无会话" :image-size="56" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="3.5" y="4.5" width="17" height="15" rx="3.5" stroke="currentColor" stroke-width="1.7" />
+              <path d="M9 5v14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+            </svg>
+          </button>
+          <strong>{{ currentSessionTitle }}</strong>
+          <span>{{ currentModelLabel }} · {{ visionEnabled ? '识图已开' : '纯文本' }}</span>
         </div>
-      </aside>
-
-      <el-card class="ai-card">
-        <div class="chat-header">
-          <div class="ai-avatar">
-            <img :src="aiAvatarHeaderUrl" alt="AI助手" />
-            <span class="status-dot"></span>
-          </div>
-          <div class="ai-info">
-            <h3>AI 智能助手</h3>
-            <p>基于大数据分析，为您提供智能决策支持</p>
-            <div class="ai-status">
-              <el-tag size="small" type="success" effect="dark">
-                <el-icon><Monitor /></el-icon> 在线
-              </el-tag>
-              <el-select
-                :model-value="selectedModel"
-                placeholder="选择模型"
-                size="small"
-                style="width: 200px; margin-left: 8px"
-                :disabled="isStreaming"
-                @change="setSelectedModel"
-              >
-                <el-option
-                  v-for="m in modelOptions"
-                  :key="m.id"
-                  :label="m.label"
-                  :value="m.id"
-                >
-                  <span>{{ m.label }}</span>
-                  <span style="float: right; color: #909399; font-size: 12px">
-                    {{ m.vision ? '识图' : '文本' }}
-                  </span>
-                </el-option>
-              </el-select>
-            </div>
-          </div>
-        </div>
-
-        <div class="chat-body">
-          <div class="message-list">
-            <div
-              class="message"
-              v-for="msg in messages"
-              :key="msg.id"
-              :class="msg.role === 'ai' ? 'ai-message' : 'user-message'"
-            >
-              <div class="message-avatar" v-if="msg.role === 'ai'">
-                <img :src="aiAvatarMsgUrl" alt="AI助手" />
-              </div>
-              <div class="message-avatar" v-else>
-                <svg viewBox="0 0 32 32" fill="none">
-                  <circle cx="16" cy="16" r="14" fill="#e8eef5"/>
-                  <circle cx="16" cy="14" r="5" fill="#667eea"/>
-                  <path d="M8 26 Q16 30 24 26" stroke="#667eea" stroke-width="2" stroke-linecap="round" fill="none"/>
-                </svg>
-              </div>
-              <div class="message-content">
-                <ChatRichBody :content="msg.content" :images="msg.images" />
-                <div class="message-time">{{ msg.time }}</div>
-              </div>
-            </div>
-            <div v-if="isLoading" class="loading-message">
-              <div class="loading-dots">
-                <span class="dot"></span>
-                <span class="dot"></span>
-                <span class="dot"></span>
-              </div>
-              <span>AI 正在思考中...</span>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="pendingImages.length" class="pending-images">
-          <div v-for="(img, idx) in pendingImages" :key="idx" class="pending-item">
-            <img :src="img.previewUrl" alt="待发送" />
-            <button type="button" class="pending-remove" @click="removePendingImage(idx)">×</button>
-          </div>
-        </div>
-
-        <div class="chat-input">
-          <input
-            ref="imageInputRef"
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            @change="onPickImages"
-          />
-          <el-button
-            size="large"
-            :disabled="isStreaming || !visionEnabled || pendingImages.length >= 4"
-            @click="imageInputRef?.click()"
-            :title="visionEnabled ? '上传图片（最多4张）' : '当前模型不支持识图，请切换到 GLM-4.6V'"
-          >
-            <el-icon><Picture /></el-icon>
-          </el-button>
-          <el-input
-            v-model="inputMessage"
-            :placeholder="visionEnabled ? '输入问题，或上传图片让 AI 解析（支持返回图表）' : '纯文本模式：输入问题（当前模型不支持识图）'"
-            @keyup.enter="handleSend"
-            size="large"
-            :disabled="isStreaming"
-            clearable
-          />
-          <el-button
-            v-if="!isStreaming"
-            type="primary"
-            @click="handleSend"
-            :disabled="!inputMessage.trim() && !pendingImages.length"
-          >
-            <el-icon><Send /></el-icon> 发送
-          </el-button>
-          <el-button
-            v-else
-            type="danger"
-            @click="stopStreaming"
-          >
-            停止
-          </el-button>
-        </div>
-      </el-card>
-
-      <div class="quick-actions">
-        <div class="quick-section">
-          <h4>
-            <el-icon><Question /></el-icon> 快捷问题
-          </h4>
-          <div class="quick-buttons">
-            <el-button
-              v-for="question in quickQuestions"
-              :key="question"
-              @click="handleQuickQuestion(question)"
-              size="small"
-            >
-              <el-icon><ChatDotRound /></el-icon> {{ question }}
-            </el-button>
-          </div>
-        </div>
-
-        <div class="quick-section">
-          <h4>
-            <el-icon><DataAnalysis /></el-icon> 快速分析
-          </h4>
-          <div class="quick-buttons">
-            <el-button
-              size="small"
-              @click="generateAnalysis('employment')"
-              :loading="isStreaming"
-            >
-              <el-icon><PieChart /></el-icon> 就业分析
-            </el-button>
-            <el-button
-              size="small"
-              @click="generateAnalysis('major')"
-              :loading="isStreaming"
-            >
-              <el-icon><School /></el-icon> 专业分析
-            </el-button>
-            <el-button
-              size="small"
-              @click="generateAnalysis('prediction')"
-              :loading="isStreaming"
-            >
-              <el-icon><TrendCharts /></el-icon> 趋势预测
-            </el-button>
-            <el-button
-              size="small"
-              @click="generateAnalysis('report')"
-              :loading="isStreaming"
-            >
-              <el-icon><Document /></el-icon> 年度报告
-            </el-button>
-            <el-button
-              size="small"
-              type="primary"
-              plain
-              @click="openPeriodBrief('weekly')"
-            >
-              <el-icon><Document /></el-icon> 一键周报
-            </el-button>
-            <el-button
-              size="small"
-              type="primary"
-              plain
-              @click="openPeriodBrief('monthly')"
-            >
-              <el-icon><Document /></el-icon> 一键月报
-            </el-button>
-          </div>
-        </div>
-
-        <div class="tips-section">
-          <h4>
-            <el-icon><InfoFilled /></el-icon> 使用提示
-          </h4>
-          <div class="tips-content">
-            <p>• 左侧可新建/切换多个会话，互不干扰</p>
-            <p>• 使用自然语言提问，如"2024届就业率如何？"</p>
-            <p>• 可以要求生成特定类型的分析报告</p>
-            <p>• 可上传图片（表格/截图），AI 会解析；需要时会返回可交互图表</p>
-            <p>• 可点「一键周报/月报」生成带图表的简报并下载 PDF</p>
-            <p>• 历史记录请到「AI 历史」表格页管理</p>
-          </div>
-        </div>
-
-        <div class="quick-section">
-          <h4>
-            <el-icon><History /></el-icon> 数据统计
-          </h4>
-          <div class="stats-content">
-            <el-progress type="circle" :percentage="Math.min(chatCount, 100)" :width="60">
-              <template #default>
-                <span class="progress-text">{{ chatCount }}</span>
-              </template>
-            </el-progress>
-            <div class="stats-label">对话条数</div>
-          </div>
+        <div class="tool-row">
+          <button type="button" class="tool-chip" :disabled="isStreaming" @click="generateAnalysis('employment')">就业分析</button>
+          <button type="button" class="tool-chip" :disabled="isStreaming" @click="generateAnalysis('major')">专业分析</button>
+          <button type="button" class="tool-chip" :disabled="isStreaming" @click="generateAnalysis('prediction')">趋势预测</button>
+          <button type="button" class="tool-chip" :disabled="isStreaming" @click="generateAnalysis('report')">年度报告</button>
+          <button type="button" class="tool-chip" :disabled="isStreaming" @click="openPeriodBrief('weekly')">一键周报</button>
+          <button type="button" class="tool-chip" :disabled="isStreaming" @click="openPeriodBrief('monthly')">一键月报</button>
         </div>
       </div>
-    </div>
+
+      <AiChatShell
+        class="admin-shell"
+        variant="page"
+        :page-size="6"
+        :messages="messages"
+        :is-loading="isLoading"
+        :is-streaming="isStreaming"
+        :suggestions="shellSuggestions"
+        empty-hi=""
+        empty-title="毕业数据助手"
+        empty-desc="输入问题或使用上方工具。回答支持一键复制，方便贴进报告与周报。"
+        :ai-avatar-url="aiAvatarMsgUrl"
+        :user-avatar-url="userAvatarUrl"
+        @suggest="onShellSuggest"
+        @regenerate="onRegenerate"
+      />
+
+      <AiChatComposer
+        v-model="inputMessage"
+        v-model:selected-model="selectedModelProxy"
+        floating
+        :pending-images="pendingImages"
+        :is-streaming="isStreaming"
+        :vision-enabled="visionEnabled"
+        :model-options="modelOptions"
+        :show-model-select="true"
+        placeholder="输入分析问题，Enter 发送…"
+        @send="handleSend"
+        @stop="stopStreaming"
+        @pick-images="onPickImages"
+        @remove-image="removePendingImage"
+      />
+    </section>
 
     <PeriodBriefDialog
       v-model="periodBriefVisible"
@@ -264,32 +100,22 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import { useAiChat } from '../composables/useAiChat'
-import ChatRichBody from '../components/ChatRichBody.vue'
+import AiChatShell from '../components/AiChatShell.vue'
+import AiChatComposer from '../components/AiChatComposer.vue'
 import PeriodBriefDialog from '../components/PeriodBriefDialog.vue'
+import { useAuth } from '../stores/auth'
+import {
+  AI_CHAT_AVATAR,
+  resolveUserChatAvatar
+} from '../utils/chatAvatars'
 
-const {
-  Delete,
-  Monitor,
-  Send,
-  Question,
-  ChatDotRound,
-  DataAnalysis,
-  PieChart,
-  School,
-  TrendCharts,
-  Document,
-  InfoFilled,
-  History,
-  Picture
-} = ElementPlusIconsVue
-
-const aiAvatarHeaderUrl = '/static/AI_2.png'
-const aiAvatarMsgUrl = '/static/AI_3.png'
-const imageInputRef = ref(null)
+const aiAvatarMsgUrl = AI_CHAT_AVATAR
+const { state: authState } = useAuth()
+const userAvatarUrl = computed(() => resolveUserChatAvatar(authState))
+const sessionCollapsed = ref(false)
 const periodBriefVisible = ref(false)
 const periodBriefInitialType = ref('weekly')
 
@@ -304,14 +130,15 @@ const {
   isLoading,
   isStreaming,
   currentYear,
-  chatCount,
   sessions,
   currentSessionKey,
+  currentSession,
   sessionsLoading,
   pendingImages,
   modelOptions,
   selectedModel,
   visionEnabled,
+  currentModelMeta,
   setSelectedModel,
   initIdentityTracking,
   loadChatHistory,
@@ -320,6 +147,7 @@ const {
   renameSession,
   removeSession,
   sendMessage,
+  regenerateLast,
   addImages,
   removePendingImage,
   stopGeneration: stopStreaming,
@@ -341,11 +169,36 @@ const {
   }
 })
 
-const onPickImages = async (e) => {
-  const files = e.target?.files
-  if (!files?.length) return
+const selectedModelProxy = computed({
+  get: () => selectedModel.value,
+  set: (v) => setSelectedModel(v)
+})
+
+const currentSessionTitle = computed(
+  () => currentSession.value?.title || '新对话'
+)
+
+const currentModelLabel = computed(
+  () => currentModelMeta.value?.label || selectedModel.value || '—'
+)
+
+const quickQuestions = computed(() => [
+  `${currentYear.value}届就业率是多少？`,
+  '分析各专业就业情况',
+  `生成${currentYear.value}年度数据分析报告`,
+  '预测下一年就业趋势',
+  '主要就业行业有哪些？',
+  '各学院就业率对比怎么样？',
+  '升学与就业比例分别是多少？',
+  '帮我梳理一份周报要点'
+])
+
+const shellSuggestions = computed(() =>
+  quickQuestions.value.map((q) => ({ label: q, prompt: q }))
+)
+
+const onPickImages = async (files) => {
   await addImages(files)
-  e.target.value = ''
 }
 
 const handleNewSession = async () => {
@@ -383,23 +236,17 @@ const handleRenameSession = async (s) => {
 
 const handleRemoveSession = async (s) => {
   try {
-    await ElMessageBox.confirm(`确定删除会话「${s.title || '新对话'}」？相关记忆与记录将一并清除。`, '提示', {
-      type: 'warning'
-    })
+    await ElMessageBox.confirm(
+      `确定删除会话「${s.title || '新对话'}」？相关记忆与记录将一并清除。`,
+      '提示',
+      { type: 'warning' }
+    )
     await removeSession(s.sessionKey)
     ElMessage.success('已删除')
   } catch {
     // cancel
   }
 }
-
-const quickQuestions = [
-  `${currentYear.value}届就业率是多少？`,
-  '分析各专业就业情况',
-  `生成${currentYear.value}年度数据分析报告`,
-  '预测下一年就业趋势',
-  '主要就业行业有哪些？'
-]
 
 const handleSend = async () => {
   if (isStreaming.value) return
@@ -413,6 +260,16 @@ const handleQuickQuestion = (question) => {
   const updatedQuestion = question.replace(/\d{4}/, currentYear.value.toString())
   inputMessage.value = updatedQuestion
   handleSend()
+}
+
+const onShellSuggest = (item) => {
+  const prompt = item?.prompt || item?.label || item
+  if (!prompt) return
+  handleQuickQuestion(String(prompt))
+}
+
+const onRegenerate = async () => {
+  await regenerateLast()
 }
 
 const generateAnalysis = async (type) => {
@@ -446,27 +303,6 @@ const clearChatHistory = async () => {
   }
 }
 
-let scrollRafId = null
-const scrollToBottom = () => {
-  if (scrollRafId != null) return
-  scrollRafId = requestAnimationFrame(() => {
-    scrollRafId = null
-    const chatBody = document.querySelector('.chat-body')
-    if (chatBody) {
-      chatBody.scrollTop = chatBody.scrollHeight
-    }
-  })
-}
-
-// 仅在条数或最后一条长度变化时滚动，避免 deep watch 全量触发
-watch(
-  () => [
-    messages.value.length,
-    messages.value[messages.value.length - 1]?.content?.length || 0
-  ],
-  () => scrollToBottom()
-)
-
 onMounted(async () => {
   await initIdentityTracking()
   await loadChatHistory()
@@ -474,490 +310,281 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* 贴边铺满：侧栏浅灰 / 主区白，无外层卡片 */
 .ai-page {
-  padding: 16px 20px;
-  background: #f8f9fa;
-  height: calc(100vh - 48px);
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.content-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  padding: 0 0 12px 0;
-  border-bottom: 2px solid #e9ecef;
-  flex-shrink: 0;
-}
-
-.content-header h2 {
-  color: #2c3e50;
-  font-size: 24px;
-  margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.ai-container {
-  display: flex;
-  gap: 16px;
   flex: 1;
   min-height: 0;
-  margin-bottom: 0;
+  height: 100%;
+  display: flex;
+  background: #fff;
+  overflow: hidden;
+  --ai-bg: #fff;
+  --ai-glow: none;
+  --ai-shadow: 0 8px 28px rgba(17, 24, 39, 0.08);
+  --ai-shadow-soft: 0 2px 10px rgba(17, 24, 39, 0.05);
+  --ai-accent: #2563eb;
+  --ai-accent-soft: rgba(37, 99, 235, 0.08);
 }
 
 .session-sidebar {
-  width: 220px;
+  width: 240px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  background: #fff;
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  gap: 8px;
+  padding: 16px 12px 12px;
+  background: #f5f6f8;
   min-height: 0;
+  overflow: hidden;
+  transition:
+    width 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease;
+}
+
+.ai-page.sidebar-collapsed .session-sidebar {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sidebar-toggle {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin-right: 2px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #6b7280;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-toggle:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.ai-page.sidebar-collapsed .sidebar-toggle {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.08);
 }
 
 .new-session-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+  color: #1a1d24;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.new-session-btn:hover:not(:disabled) {
+  background: #eef0f3;
+  transform: translateY(-1px);
+}
+
+.new-session-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.new-session-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: #eef0f3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  color: #4b5563;
 }
 
 .session-list {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  padding-top: 4px;
 }
 
 .session-item {
-  padding: 10px 10px 6px;
-  border-radius: 8px;
+  padding: 10px 12px 8px;
+  border-radius: 10px;
   cursor: pointer;
-  margin-bottom: 6px;
-  border: 1px solid transparent;
-  transition: all 0.15s ease;
+  margin-bottom: 2px;
+  transition: background 0.15s ease;
 }
 
 .session-item:hover {
-  background: #f5f7fa;
+  background: rgba(17, 24, 39, 0.04);
 }
 
 .session-item.active {
-  background: #eef2ff;
-  border-color: #c7d2fe;
+  background: rgba(17, 24, 39, 0.07);
 }
 
 .session-title {
   font-size: 13px;
-  color: #303133;
+  color: #1a1d24;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   margin-bottom: 4px;
+  line-height: 1.4;
 }
 
 .session-actions {
   display: flex;
-  gap: 4px;
-  opacity: 0.75;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
 
-.ai-card {
+.session-item:hover .session-actions,
+.session-item.active .session-actions {
+  opacity: 1;
+}
+
+.session-action {
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 12px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.session-action:hover {
+  color: #2563eb;
+}
+
+.session-action.danger:hover {
+  color: #e57373;
+}
+
+.sidebar-foot {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.foot-link {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 12px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.foot-link:hover {
+  background: rgba(17, 24, 39, 0.05);
+  color: #1a1d24;
+}
+
+.foot-link.danger:hover {
+  color: #e57373;
+}
+
+.chat-main {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-}
-
-.ai-card :deep(.el-card__body) {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
-.chat-header {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 16px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-radius: 8px 8px 0 0;
-  flex-shrink: 0;
-}
-
-.ai-avatar {
-  position: relative;
-  width: 56px;
-  height: 56px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  overflow: visible;
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.ai-avatar img {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  object-fit: cover;
-  display: block;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-}
-
-.ai-avatar .status-dot {
-  position: absolute;
-  right: 2px;
-  bottom: 2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #67c23a;
-  border: 2px solid #fff;
-}
-
-.ai-info h3 {
-  margin: 0 0 5px 0;
-  font-size: 20px;
-}
-
-.ai-info p {
-  margin: 0 0 10px 0;
-  opacity: 0.9;
-  font-size: 14px;
-}
-
-.ai-status {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
-}
-
-.chat-body {
-  flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  padding: 16px 20px;
-  background: white;
+  background: #fff;
+  overflow: hidden;
 }
 
-.message-list {
+.chat-top {
+  flex-shrink: 0;
+  padding: 14px 28px 0;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 10px;
 }
 
-.message {
-  display: flex;
-  gap: 12px;
-}
-
-.message-avatar {
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  overflow: hidden;
-  align-self: flex-start;
-}
-
-.message-avatar img,
-.message-avatar svg {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.message-content {
-  max-width: 70%;
-  width: fit-content;
-  height: fit-content;
-  align-self: flex-start;
-}
-
-.user-message {
-  flex-direction: row-reverse;
-}
-
-.user-message .message-content {
-  align-self: flex-end;
-}
-
-.message-text {
-  padding: 12px 16px;
-  border-radius: 12px;
-  font-size: 14px;
-  line-height: 1.6;
-  word-break: break-word;
-}
-
-.message-text :deep(p) {
-  margin: 0 0 8px;
-}
-
-.message-text :deep(p:last-child) {
-  margin-bottom: 0;
-}
-
-.message-text :deep(h3),
-.message-text :deep(h4) {
-  margin: 10px 0 6px;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.message-text :deep(h3:first-child),
-.message-text :deep(h4:first-child) {
-  margin-top: 0;
-}
-
-.message-text :deep(ul),
-.message-text :deep(ol) {
-  margin: 6px 0 10px;
-  padding-left: 20px;
-}
-
-.message-text :deep(li) {
-  margin: 4px 0;
-}
-
-.message-text :deep(strong) {
-  font-weight: 600;
-}
-
-.ai-message .message-text {
-  background: #f5f7fa;
-  color: #333;
-  border: 1px solid #e9ecef;
-}
-
-.user-message .message-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-  margin-left: auto;
-}
-
-.message-time {
-  font-size: 12px;
-  color: #999;
-  margin-top: 5px;
-  text-align: right;
-}
-
-.loading-message {
+.chat-top-meta {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 16px;
-  background: #f5f7fa;
-  border-radius: 12px;
-  color: #666;
-  justify-content: center;
+  min-width: 0;
 }
 
-.loading-dots {
-  display: flex;
-  gap: 5px;
+.chat-top-meta strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.dot {
-  width: 8px;
-  height: 8px;
-  background: #667eea;
-  border-radius: 50%;
-  animation: loading 1.4s infinite ease-in-out both;
-}
-
-.dot:nth-child(1) { animation-delay: -0.32s; }
-.dot:nth-child(2) { animation-delay: -0.16s; }
-.dot:nth-child(3) { animation-delay: 0s; }
-
-@keyframes loading {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
-}
-
-.chat-input {
-  display: flex;
-  gap: 12px;
-  padding: 14px 16px;
-  background: #f8f9fa;
-  border-top: 1px solid #e9ecef;
-  flex-shrink: 0;
-}
-
-.pending-images {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 8px 16px 0;
-  background: #f8f9fa;
-}
-
-.pending-item {
-  position: relative;
-  width: 64px;
-  height: 64px;
-}
-
-.pending-item img {
-  width: 64px;
-  height: 64px;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid #e4e7ed;
-}
-
-.pending-remove {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 18px;
-  height: 18px;
-  border: none;
-  border-radius: 50%;
-  background: #f56c6c;
-  color: #fff;
-  cursor: pointer;
-  line-height: 18px;
+.chat-top-meta span {
   font-size: 12px;
-  padding: 0;
+  color: #9ca3af;
+  white-space: nowrap;
 }
 
-.chat-input :deep(.el-input) {
+.tool-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tool-chip {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tool-chip:hover:not(:disabled) {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.tool-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.admin-shell {
   flex: 1;
+  min-height: 0;
 }
 
-.quick-actions {
-  width: 280px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-  max-height: 100%;
-}
-
-.quick-section {
-  background: white;
-  padding: 15px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.quick-section h4 {
-  margin: 0 0 15px 0;
-  color: #2c3e50;
-  font-size: 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.quick-section h4::before {
-  content: '';
-  width: 4px;
-  height: 20px;
-  background: #667eea;
-  border-radius: 2px;
-}
-
-.quick-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.quick-buttons :deep(.el-button) {
-  background: #f8f9fa;
-  border-color: #e9ecef;
-  color: #495057;
-  font-size: 13px;
-}
-
-.quick-buttons :deep(.el-button:hover) {
-  background: #667eea;
-  border-color: #667eea;
-  color: white;
-  transform: translateY(-1px);
-  transition: all 0.3s ease;
-}
-
-.tips-section {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: white;
-  padding: 15px;
-  border-radius: 8px;
-}
-
-.tips-section h4 {
-  margin: 0 0 10px 0;
-  font-size: 16px;
-}
-
-.tips-content {
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.tips-content p {
-  margin: 0 0 5px 0;
-  opacity: 0.9;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .ai-container {
+@media (max-width: 960px) {
+  .ai-page {
     flex-direction: column;
   }
 
-  .quick-actions {
+  .session-sidebar {
     width: 100%;
+    max-height: 160px;
   }
-
-  .header-actions {
-    flex-wrap: wrap;
-  }
-
-  .chat-body {
-    max-height: 400px;
-  }
-}
-
-/* 滚动条样式 */
-.chat-body::-webkit-scrollbar {
-  width: 6px;
-}
-
-.chat-body::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-.chat-body::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 3px;
-}
-
-.chat-body::-webkit-scrollbar-thumb:hover {
-  background: #555;
 }
 </style>

@@ -34,7 +34,15 @@
       </el-button>
     </div>
 
-    <div v-loading="loading" class="brief-body">
+    <div v-loading="loading" :element-loading-text="loadingStep" class="brief-body">
+      <div v-if="loading" class="loading-steps">
+        <p class="step-active">{{ loadingStep }}</p>
+        <ul>
+          <li :class="{ done: loadingPhase >= 1 }">拉取届次指标</li>
+          <li :class="{ done: loadingPhase >= 2 }">汇总图表数据</li>
+          <li :class="{ done: loadingPhase >= 3 }">生成 AI 摘要</li>
+        </ul>
+      </div>
       <div v-if="brief" ref="exportRef" class="brief-export">
         <header class="brief-head">
           <h2>{{ brief.title }}</h2>
@@ -66,7 +74,7 @@
           </div>
         </section>
       </div>
-      <el-empty v-else description="选择周报/月报与届次后点击生成" />
+      <el-empty v-else-if="!loading" description="选择周报/月报与届次后点击生成" />
     </div>
   </el-dialog>
 </template>
@@ -97,11 +105,45 @@ const periodType = ref('weekly')
 const year = ref(props.defaultYear)
 const department = ref('')
 const loading = ref(false)
+const loadingPhase = ref(0)
+const loadingStep = ref('准备生成…')
 const exporting = ref(false)
 const brief = ref(null)
 const exportRef = ref(null)
 const chartEls = []
 const chartInstances = []
+let loadingTimer = null
+
+const LOADING_STEPS = [
+  { phase: 1, text: '正在拉取届次指标…' },
+  { phase: 2, text: '正在汇总图表数据…' },
+  { phase: 3, text: '正在生成 AI 摘要…' }
+]
+
+function startLoadingSteps() {
+  loadingPhase.value = 0
+  loadingStep.value = '准备生成…'
+  let i = 0
+  if (loadingTimer) clearInterval(loadingTimer)
+  loadingTimer = setInterval(() => {
+    if (i >= LOADING_STEPS.length) {
+      loadingStep.value = '即将完成，请稍候…'
+      return
+    }
+    loadingPhase.value = LOADING_STEPS[i].phase
+    loadingStep.value = LOADING_STEPS[i].text
+    i += 1
+  }, 900)
+}
+
+function stopLoadingSteps() {
+  if (loadingTimer) {
+    clearInterval(loadingTimer)
+    loadingTimer = null
+  }
+  loadingPhase.value = 0
+  loadingStep.value = '准备生成…'
+}
 
 watch(() => props.defaultYear, (y) => {
   if (y) year.value = y
@@ -174,6 +216,7 @@ async function generate() {
   loading.value = true
   brief.value = null
   disposeCharts()
+  startLoadingSteps()
   try {
     const res = await generatePeriodBrief({
       year: year.value,
@@ -181,6 +224,8 @@ async function generate() {
       department: department.value || undefined
     })
     if (res.code === 200) {
+      loadingPhase.value = 3
+      loadingStep.value = '渲染简报内容…'
       brief.value = res.data
       await renderCharts()
       ElMessage.success('简报已生成')
@@ -190,6 +235,7 @@ async function generate() {
   } catch (e) {
     ElMessage.error(e?.message || '生成失败，请稍后重试')
   } finally {
+    stopLoadingSteps()
     loading.value = false
   }
 }
@@ -234,6 +280,7 @@ async function downloadPdf() {
 }
 
 function onClosed() {
+  stopLoadingSteps()
   disposeCharts()
   brief.value = null
 }
@@ -251,6 +298,52 @@ function onClosed() {
   min-height: 360px;
   max-height: 68vh;
   overflow: auto;
+  position: relative;
+}
+.loading-steps {
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+}
+.loading-steps .step-active {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #3d5a80;
+}
+.loading-steps ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.loading-steps li {
+  font-size: 12px;
+  color: #909399;
+  padding-left: 14px;
+  position: relative;
+}
+.loading-steps li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #dcdfe6;
+}
+.loading-steps li.done {
+  color: #3d5a80;
+}
+.loading-steps li.done::before {
+  background: #3d5a80;
 }
 .brief-export {
   background: #fff;

@@ -52,8 +52,9 @@
           <el-table-column prop="createTime" label="时间" width="180" sortable="custom">
             <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="150" fixed="right">
+          <el-table-column label="操作" width="200" fixed="right">
             <template #default="{ row }">
+              <el-button link type="primary" @click="openPreview(row)">预览</el-button>
               <el-button link type="primary" @click="openMsgDialog(row)">编辑</el-button>
               <el-button link type="danger" @click="removeMessage(row)">删除</el-button>
             </template>
@@ -135,6 +136,32 @@
       </el-tab-pane>
     </el-tabs>
 
+    <el-drawer
+      v-model="previewVisible"
+      title="消息预览"
+      size="480px"
+      destroy-on-close
+    >
+      <div v-if="previewRow" class="preview-drawer ai-chat-scope">
+        <div class="preview-meta">
+          <el-tag size="small">{{ previewRow.userType || '-' }}</el-tag>
+          <el-tag size="small" type="info">{{ previewRow.role || '-' }}</el-tag>
+          <span class="preview-time">{{ formatTime(previewRow.createTime) }}</span>
+        </div>
+        <section v-if="previewRow.content" class="preview-block">
+          <h4>用户内容</h4>
+          <div class="preview-bubble is-user">{{ previewRow.content }}</div>
+        </section>
+        <section v-if="previewRow.response" class="preview-block">
+          <h4>AI 回复</h4>
+          <div class="preview-bubble is-ai">
+            <ChatRichBody :content="previewRow.response" />
+          </div>
+        </section>
+        <el-empty v-if="!previewRow.content && !previewRow.response" description="无内容" />
+      </div>
+    </el-drawer>
+
     <el-dialog v-model="msgDialogVisible" :title="editingMsg?.id ? '编辑消息' : '新增消息'" width="560px">
       <el-form label-width="90px">
         <el-form-item label="用户类型" v-if="!editingMsg?.id">
@@ -190,6 +217,7 @@ import {
   deleteAiSession
 } from '../api/admin'
 import { useAuth } from '../stores/auth'
+import ChatRichBody from '../components/ChatRichBody.vue'
 
 const auth = useAuth()
 const activeTab = ref('messages')
@@ -207,6 +235,8 @@ const msgSort = ref({ sortBy: 'id', sortOrder: 'asc' })
 const sessionSort = ref({ sortBy: 'id', sortOrder: 'asc' })
 
 const msgDialogVisible = ref(false)
+const previewVisible = ref(false)
+const previewRow = ref(null)
 const savingMsg = ref(false)
 const editingMsg = ref(null)
 const msgForm = ref({
@@ -316,6 +346,11 @@ const loadSessions = async () => {
   } finally {
     loadingSession.value = false
   }
+}
+
+const openPreview = (row) => {
+  previewRow.value = row
+  previewVisible.value = true
 }
 
 const openMsgDialog = (row = null) => {
@@ -471,12 +506,17 @@ onMounted(() => {
 }
 .page-header h2 {
   margin: 0 0 6px;
-  font-size: 22px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #2d5a7a;
+  line-height: 1.35;
 }
 .page-header p {
   margin: 0 0 16px;
   color: #909399;
   font-size: 13px;
+  line-height: 1.5;
+  font-weight: 400;
 }
 .toolbar {
   display: flex;
@@ -489,5 +529,41 @@ onMounted(() => {
   margin-top: 16px;
   display: flex;
   justify-content: flex-end;
+}
+.preview-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.preview-time {
+  font-size: 12px;
+  color: #909399;
+}
+.preview-block h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #606266;
+}
+.preview-bubble {
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+.preview-bubble.is-user {
+  background: #3d5a80;
+  color: #fff;
+}
+.preview-bubble.is-ai {
+  background: #f1f3f6;
+  border: 1px solid #e5e7eb;
+  color: #1a1d24;
 }
 </style>
