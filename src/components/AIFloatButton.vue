@@ -1,25 +1,22 @@
 <template>
-  <div 
+  <div
     ref="rootRef"
     class="ai-float-container"
-    :class="{ 'dragging': isDragging }"
+    :class="{ dragging: isDragging }"
     :style="containerStyle"
   >
-    <div 
-      class="ai-float-btn" 
-      :class="{ 'active': isOpen, 'dragging': isDragging }"
-    >
+    <div class="ai-float-btn" :class="{ active: isOpen, dragging: isDragging }">
       <div class="btn-ring"></div>
       <div class="btn-inner">
         <img class="ai-icon" :src="aiAvatarUrl" alt="AI助手" draggable="false" />
       </div>
-      <span class="ai-badge" v-if="unreadCount > 0">{{ unreadCount }}</span>
+      <span class="ai-badge" v-if="unreadCount > 0">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
       <div class="btn-overlay" @mousedown="startDrag" @touchstart="startDrag" @click="toggleChat"></div>
     </div>
-    
+
     <transition name="chat-panel">
-      <div v-if="isOpen" class="ai-chat-panel" :style="panelStyle" ref="panelRef">
-        <div class="chat-header" @mousedown.stop="startDrag" @touchstart.stop="startDrag" style="cursor: grab;">
+      <div v-if="isOpen" class="ai-chat-panel ai-chat-scope" :style="panelStyle" ref="panelRef">
+        <div class="chat-header" @mousedown.stop="startDrag" @touchstart.stop="startDrag">
           <div class="chat-title">
             <div class="avatar-wrapper">
               <img class="avatar-icon" :src="aiAvatarHeaderUrl" alt="AI助手" draggable="false" />
@@ -31,19 +28,6 @@
             </div>
           </div>
           <div class="header-actions">
-            <select
-              class="model-select"
-              :value="selectedModel"
-              :disabled="isStreaming"
-              title="切换模型"
-              @click.stop
-              @mousedown.stop
-              @change="setSelectedModel($event.target.value)"
-            >
-              <option v-for="m in modelOptions" :key="m.id" :value="m.id">
-                {{ m.label }}
-              </option>
-            </select>
             <button class="header-icon-btn" title="新对话" @click.stop="handleNewChat">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -63,108 +47,36 @@
             </button>
           </div>
         </div>
-        
-        <div class="chat-messages" ref="messagesContainer">
-          <div class="message" :class="msg.role === 'ai' ? 'ai-message' : 'user-message'" v-for="msg in messages" :key="msg.id">
-            <div class="message-avatar" v-if="msg.role === 'ai'">
-              <img :src="aiAvatarMsgUrl" alt="AI助手" draggable="false" />
-            </div>
-            <div class="message-avatar" v-else>
-              <svg viewBox="0 0 32 32" fill="none">
-                <circle cx="16" cy="16" r="14" fill="#e8eef5"/>
-                <circle cx="16" cy="14" r="5" fill="#667eea"/>
-                <path d="M8 26 Q16 30 24 26" stroke="#667eea" stroke-width="2" stroke-linecap="round" fill="none"/>
-              </svg>
-            </div>
-            <div class="message-content">
-              <ChatRichBody :content="msg.content" :images="msg.images" />
-              <span class="message-time">{{ msg.time || formatTime() }}</span>
-            </div>
-          </div>
-          <div v-if="isLoading" class="loading-indicator">
-            <div class="loading-bubble">
-              <div class="loading-dots">
-                <span class="dot"></span>
-                <span class="dot"></span>
-                <span class="dot"></span>
-              </div>
-              <span class="loading-text">正在生成...</span>
-            </div>
-          </div>
-        </div>
 
-        <div v-if="pendingImages.length" class="float-pending-images">
-          <div v-for="(img, idx) in pendingImages" :key="idx" class="float-pending-item">
-            <img :src="img.previewUrl" alt="" />
-            <button type="button" @click="removePendingImage(idx)">×</button>
-          </div>
-        </div>
-        
-        <div class="chat-input">
-          <div class="input-wrapper">
-            <input
-              ref="floatImageInput"
-              type="file"
-              accept="image/*"
-              multiple
-              hidden
-              @change="onFloatPickImages"
-            />
-            <button
-              class="img-btn"
-              type="button"
-              :title="visionEnabled ? '上传图片' : '当前模型不支持识图'"
-              :disabled="isStreaming || !visionEnabled || pendingImages.length >= 4"
-              @click="floatImageInput?.click()"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                <polyline points="21 15 16 10 5 21"></polyline>
-              </svg>
-            </button>
-            <input 
-              v-model="inputText" 
-              :placeholder="visionEnabled ? '输入问题或上传图片...' : '纯文本模式，输入问题...'" 
-              @keyup.enter="sendMessage"
-              class="input-field"
-              :disabled="isStreaming"
-            />
-            <button
-              v-if="!isStreaming"
-              class="send-btn"
-              @click="sendMessage"
-              :disabled="!inputText.trim() && !pendingImages.length"
-              title="发送"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-              </svg>
-            </button>
-            <button
-              v-else
-              class="send-btn stop-send-btn"
-              @click="stopGeneration"
-              title="停止生成"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <rect x="6" y="6" width="12" height="12" rx="2"></rect>
-              </svg>
-            </button>
-          </div>
-          <div class="quick-actions">
-            <button 
-              v-for="action in quickActions" 
-              :key="action.label"
-              class="quick-action-btn"
-              :title="action.forceVision ? `${action.label}（自动使用出图模型）` : action.label"
-              @click="sendQuickAction(action)"
-            >
-              {{ action.label }}
-            </button>
-          </div>
-        </div>
+        <AiChatShell
+          ref="shellRef"
+          :messages="messages"
+          :is-loading="isLoading"
+          :is-streaming="isStreaming"
+          :suggestions="emptySuggestions"
+          empty-hi="hi ~"
+          :empty-title="emptyTitle"
+          :empty-desc="emptyDesc"
+          :ai-avatar-url="aiAvatarMsgUrl"
+          :user-avatar-url="userAvatarUrl"
+          @suggest="onSuggest"
+          @regenerate="onRegenerate"
+        />
+
+        <AiChatComposer
+          v-model="inputText"
+          v-model:selected-model="selectedModelProxy"
+          :pending-images="pendingImages"
+          :is-streaming="isStreaming"
+          :vision-enabled="visionEnabled"
+          :model-options="modelOptions"
+          :placeholder="visionEnabled ? '说说你想了解的，或上传图片…' : '说说你想了解的…'"
+          @send="sendMessage"
+          @stop="stopGeneration"
+          @pick-images="onFloatPickImages"
+          @remove-image="removePendingImage"
+        />
+
         <div class="resize-handle" @mousedown="startResize" @touchstart="startResize"></div>
       </div>
     </transition>
@@ -175,31 +87,30 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAiChat } from '../composables/useAiChat'
-import ChatRichBody from './ChatRichBody.vue'
+import AiChatShell from './AiChatShell.vue'
+import AiChatComposer from './AiChatComposer.vue'
+import { useAuth } from '../stores/auth'
+import {
+  AI_CHAT_AVATAR,
+  AI_CHAT_HEADER_AVATAR,
+  resolveUserChatAvatar
+} from '../utils/chatAvatars'
 
 const isOpen = ref(false)
 const rootRef = ref(null)
 const panelRef = ref(null)
+const shellRef = ref(null)
 const isDragging = ref(false)
 const unreadCount = ref(0)
-const messagesContainer = ref(null)
-const floatImageInput = ref(null)
-let resizeMode = null // 仅右下角手柄: 'corner'
+let resizeMode = null
 
 if (window.__aiFloatButtonMounted__) {
   throw new Error('AIFloatButton should only be mounted once')
 }
 window.__aiFloatButtonMounted__ = true
 
-let scrollRafId = null
 const scrollToBottom = () => {
-  if (scrollRafId != null) return
-  scrollRafId = requestAnimationFrame(() => {
-    scrollRafId = null
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-    }
-  })
+  shellRef.value?.scrollToBottom?.()
 }
 
 const {
@@ -208,7 +119,6 @@ const {
   isLoading,
   isStreaming,
   identity,
-  formatTime,
   pendingImages,
   modelOptions,
   selectedModel,
@@ -220,6 +130,7 @@ const {
   loadChatHistory,
   createSession,
   sendMessage: sendChatMessage,
+  regenerateLast,
   addImages,
   removePendingImage,
   stopGeneration,
@@ -229,7 +140,17 @@ const {
   onError: () => ElMessage.error('AI 对话失败，请稍后重试'),
   onRiskBlocked: ({ message }) => {
     ElMessage.warning(message || '检测到敏感内容，已拦截并记录')
+  },
+  onStreamEnd: () => {
+    if (!isOpen.value) {
+      unreadCount.value = Math.min(99, unreadCount.value + 1)
+    }
   }
+})
+
+const selectedModelProxy = computed({
+  get: () => selectedModel.value,
+  set: (v) => setSelectedModel(v)
 })
 
 const ADMIN_QUICK_ACTIONS = [
@@ -277,16 +198,36 @@ const quickActions = computed(() => {
   return GUEST_QUICK_ACTIONS
 })
 
-const onFloatPickImages = async (e) => {
-  const files = e.target?.files
-  if (!files?.length) return
+const emptySuggestions = computed(() => quickActions.value)
+const emptyTitle = computed(() => {
+  const role = identity.value?.userRole
+  if (role === 'student') return '我是你的毕业数据助手'
+  if (role === 'admin') return '我是毕业数据助手'
+  return '我是毕业数据助手'
+})
+const emptyDesc = computed(() => {
+  const role = identity.value?.userRole
+  if (role === 'student') return '想解读画像、对比同窗，或问问去向，直接告诉我就好'
+  if (role === 'admin') return '就业、趋势、专业对比，点下面建议或直接提问'
+  return '遇到问题、想了解什么，直接告诉我就好'
+})
+
+const onFloatPickImages = async (files) => {
   await addImages(files)
-  e.target.value = ''
 }
 
-const aiAvatarUrl = ref('/static/AI_1.png')
-const aiAvatarHeaderUrl = ref('/static/AI_2.png')
-const aiAvatarMsgUrl = ref('/static/AI_3.png')
+const onSuggest = (item) => sendQuickAction(item)
+const onRegenerate = async () => {
+  await regenerateLast()
+  scrollToBottom()
+}
+
+const aiAvatarUrl = ref(AI_CHAT_AVATAR)
+const aiAvatarHeaderUrl = ref(AI_CHAT_HEADER_AVATAR)
+const aiAvatarMsgUrl = ref(AI_CHAT_AVATAR)
+
+const { state: authState } = useAuth()
+const userAvatarUrl = computed(() => resolveUserChatAvatar(authState))
 
 const position = ref({
   x: window.innerWidth - 100,
@@ -302,10 +243,15 @@ const hasMoved = ref(false)
 const BTN_SIZE = 72
 const PANEL_GAP = 12
 const VIEW_PADDING = 10
-const MIN_PANEL_WIDTH = 300
-const MIN_PANEL_HEIGHT = 320
-const DEFAULT_PANEL_WIDTH = 420
-const DEFAULT_PANEL_HEIGHT = 520
+const MIN_PANEL_WIDTH = 320
+const MIN_PANEL_HEIGHT = 400
+const DEFAULT_PANEL_WIDTH = 400
+const DEFAULT_PANEL_HEIGHT = 560
+/** 历史默认尺寸，打开时自动迁移到当前默认 */
+const LEGACY_SIZES = new Set([
+  '420x520',
+  '440x640'
+])
 
 const panelWidth = ref(DEFAULT_PANEL_WIDTH)
 const panelHeight = ref(DEFAULT_PANEL_HEIGHT)
@@ -319,7 +265,6 @@ const viewport = ref({
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 
-/** 最大可拉伸尺寸：接近视口，不再把高度死锁在默认高度 */
 const getMaxPanelSize = () => ({
   width: Math.max(MIN_PANEL_WIDTH, viewport.value.width - VIEW_PADDING * 2),
   height: Math.max(MIN_PANEL_HEIGHT, viewport.value.height - VIEW_PADDING * 2)
@@ -402,7 +347,7 @@ const toggleChat = () => {
     fitPanelToViewport()
     unreadCount.value = 0
     loadChatHistory()
-    scrollToBottom()
+    nextTick(() => scrollToBottom())
   }
 }
 
@@ -411,28 +356,47 @@ const closeChat = () => {
   isOpen.value = false
 }
 
-/** 点击聊天框与悬浮按钮以外区域时收起 */
 const onDocumentPointerDown = (e) => {
   if (!isOpen.value || isDragging.value || isResizing.value) return
   const target = e.target
   if (!(target instanceof Node)) return
   if (panelRef.value?.contains(target)) return
   if (rootRef.value?.contains(target)) return
-  // Element Plus 弹层（如风控提示）不收起
   if (target.closest?.('.el-overlay, .el-message-box, .el-message, .el-popper')) return
   closeChat()
 }
 
+/** 指针在悬浮窗内滚轮时，不带动背后页面滚动 */
+let wheelTarget = null
+const onPanelWheel = (e) => {
+  e.stopPropagation()
+  const el = shellRef.value?.shellRef
+  if (!(el instanceof HTMLElement)) {
+    e.preventDefault()
+    return
+  }
+  const { scrollTop, scrollHeight, clientHeight } = el
+  const maxScroll = scrollHeight - clientHeight
+  const atTop = scrollTop <= 0
+  const atBottom = scrollTop >= maxScroll - 1
+  if (maxScroll <= 0 || (e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)) {
+    e.preventDefault()
+  }
+}
+
 watch(isOpen, (open) => {
   if (open) {
-    // 等当前点击事件冒泡结束再挂载，避免刚打开就被同一次点击关掉
     nextTick(() => {
       document.addEventListener('mousedown', onDocumentPointerDown, true)
       document.addEventListener('touchstart', onDocumentPointerDown, true)
+      wheelTarget = panelRef.value
+      wheelTarget?.addEventListener('wheel', onPanelWheel, { passive: false })
     })
   } else {
     document.removeEventListener('mousedown', onDocumentPointerDown, true)
     document.removeEventListener('touchstart', onDocumentPointerDown, true)
+    wheelTarget?.removeEventListener('wheel', onPanelWheel)
+    wheelTarget = null
   }
 })
 
@@ -445,9 +409,8 @@ const startDrag = (e) => {
   startY.value = event.clientY
   startPosX.value = position.value.x
   startPosY.value = position.value.y
-  
+
   document.body.style.userSelect = 'none'
-  
   document.addEventListener('mousemove', onDrag)
   document.addEventListener('mouseup', stopDrag)
   document.addEventListener('mouseleave', stopDrag)
@@ -457,18 +420,12 @@ const startDrag = (e) => {
 
 const onDrag = (e) => {
   if (!isDragging.value) return
-  
   const event = e.touches ? e.touches[0] : e
   const deltaX = event.clientX - startX.value
   const deltaY = event.clientY - startY.value
-  
-  if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
-    hasMoved.value = true
-  }
-  
+  if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) hasMoved.value = true
   const maxX = viewport.value.width - BTN_SIZE - VIEW_PADDING
   const maxY = viewport.value.height - BTN_SIZE - VIEW_PADDING
-
   position.value = {
     x: clamp(startPosX.value + deltaX, VIEW_PADDING, Math.max(VIEW_PADDING, maxX)),
     y: clamp(startPosY.value + deltaY, VIEW_PADDING, Math.max(VIEW_PADDING, maxY))
@@ -480,7 +437,6 @@ const stopDrag = () => {
   document.body.style.userSelect = ''
   snapToEdge()
   savePosition()
-  
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
   document.removeEventListener('mouseleave', stopDrag)
@@ -492,19 +448,14 @@ const snapToEdge = () => {
   const snapThreshold = 60
   let newX = position.value.x
   let newY = position.value.y
-
-  if (newX < snapThreshold) {
-    newX = VIEW_PADDING
-  } else if (viewport.value.width - newX - BTN_SIZE < snapThreshold) {
+  if (newX < snapThreshold) newX = VIEW_PADDING
+  else if (viewport.value.width - newX - BTN_SIZE < snapThreshold) {
     newX = viewport.value.width - BTN_SIZE - VIEW_PADDING
   }
-
-  if (newY < snapThreshold) {
-    newY = VIEW_PADDING
-  } else if (viewport.value.height - newY - BTN_SIZE < snapThreshold) {
+  if (newY < snapThreshold) newY = VIEW_PADDING
+  else if (viewport.value.height - newY - BTN_SIZE < snapThreshold) {
     newY = viewport.value.height - BTN_SIZE - VIEW_PADDING
   }
-
   position.value = { x: newX, y: newY }
   clampButtonPosition()
 }
@@ -513,20 +464,16 @@ const startResize = (e) => {
   e.preventDefault()
   e.stopPropagation()
   if (!panelRef.value) return
-
   isResizing.value = true
   resizeMode = 'corner'
   const event = e.touches ? e.touches[0] : e
   startX.value = event.clientX
   startY.value = event.clientY
-
-  // 以当前实际渲染尺寸为起点，避免高度拖不动的死区
   const rect = panelRef.value.getBoundingClientRect()
   startWidth.value = rect.width
   startHeight.value = rect.height
   panelWidth.value = rect.width
   panelHeight.value = rect.height
-
   document.body.style.userSelect = 'none'
   document.addEventListener('mousemove', onResize)
   document.addEventListener('mouseup', stopResize)
@@ -538,12 +485,10 @@ const startResize = (e) => {
 const onResize = (e) => {
   if (!isResizing.value || resizeMode !== 'corner') return
   e.preventDefault?.()
-
   const event = e.touches ? e.touches[0] : e
   const deltaX = event.clientX - startX.value
   const deltaY = event.clientY - startY.value
   const max = getMaxPanelSize()
-
   panelWidth.value = clamp(startWidth.value + deltaX, MIN_PANEL_WIDTH, max.width)
   panelHeight.value = clamp(startHeight.value + deltaY, MIN_PANEL_HEIGHT, max.height)
 }
@@ -588,10 +533,16 @@ const loadPosition = () => {
   if (savedSize) {
     try {
       const size = JSON.parse(savedSize)
-      if (size.width) panelWidth.value = size.width
-      if (size.height) panelHeight.value = size.height
-    } catch (e) {
-      // ignore
+      const key = `${size.width}x${size.height}`
+      if (LEGACY_SIZES.has(key)) {
+        panelWidth.value = DEFAULT_PANEL_WIDTH
+        panelHeight.value = DEFAULT_PANEL_HEIGHT
+      } else {
+        if (size.width) panelWidth.value = size.width
+        if (size.height) panelHeight.value = size.height
+      }
+    } catch (_) {
+      /* ignore */
     }
   }
   clampButtonPosition()
@@ -664,6 +615,8 @@ onUnmounted(() => {
   document.removeEventListener('touchend', stopDrag)
   document.removeEventListener('mousedown', onDocumentPointerDown, true)
   document.removeEventListener('touchstart', onDocumentPointerDown, true)
+  wheelTarget?.removeEventListener('wheel', onPanelWheel)
+  wheelTarget = null
   window.__aiFloatButtonMounted__ = false
 })
 </script>
@@ -704,24 +657,15 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #2563eb;
   animation: ring-pulse 2s infinite;
-  opacity: 0.6;
+  opacity: 0.4;
 }
 
 @keyframes ring-pulse {
-  0% {
-    transform: scale(1);
-    opacity: 0.6;
-  }
-  50% {
-    transform: scale(1.4);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 0;
-  }
+  0% { transform: scale(1); opacity: 0.4; }
+  50% { transform: scale(1.35); opacity: 0; }
+  100% { transform: scale(1); opacity: 0; }
 }
 
 .btn-inner {
@@ -732,7 +676,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.35);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.28);
   position: relative;
   z-index: 1;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -748,588 +692,169 @@ onUnmounted(() => {
 
 .btn-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 80px;
-  height: 80px;
-  margin: -4px;
+  inset: 0;
+  z-index: 2;
   border-radius: 50%;
-  z-index: 10;
-  cursor: grab;
-}
-
-.ai-float-btn:hover .btn-inner {
-  transform: scale(1.05);
-  box-shadow: 0 12px 35px rgba(102, 126, 234, 0.45);
 }
 
 .ai-float-btn.active .btn-inner {
-  transform: scale(1.05) rotate(180deg);
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.ai-float-btn.active .ai-icon {
-  filter: brightness(0) invert(1);
-}
-
-.ai-float-btn.dragging .btn-inner {
-  transform: scale(1.15);
-  box-shadow: 0 15px 40px rgba(102, 126, 234, 0.5);
+  transform: scale(0.92);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
 }
 
 .ai-badge {
   position: absolute;
-  top: -2px;
-  right: -2px;
-  min-width: 20px;
-  height: 20px;
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  top: 2px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #e57373;
   color: #fff;
   font-size: 11px;
-  font-weight: 600;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 5px;
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
-  z-index: 2;
+  line-height: 18px;
+  text-align: center;
+  z-index: 3;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .ai-chat-panel {
+  position: fixed;
+  z-index: 10010;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(24px);
-  border-radius: 24px;
-  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  background:
+    radial-gradient(ellipse 90% 60% at 10% -10%, rgba(147, 197, 253, 0.35), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 100% 0%, rgba(199, 210, 254, 0.28), transparent 50%),
+    linear-gradient(180deg, #eef3fb 0%, #f4f6fb 45%, #eef1f7 100%);
+  border-radius: 22px;
+  border: none;
+  box-shadow: 0 20px 50px rgba(37, 99, 235, 0.16), 0 2px 10px rgba(17, 24, 39, 0.06);
   overflow: hidden;
-  position: fixed;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  cursor: default;
   max-width: calc(100vw - 20px);
-  max-height: calc(100vh - 20px);
-  animation: panel-appear 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes panel-appear {
-  from {
-    opacity: 0;
-    transform: translateY(20px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
 }
 
 .chat-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 20px 24px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-  user-select: none;
-  -webkit-user-select: none;
+  justify-content: space-between;
+  padding: 10px 12px 8px 14px;
+  background: transparent;
+  border-bottom: none;
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.header-icon-btn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ai-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.header-icon-btn:hover {
+  background: var(--ai-accent-soft);
+  color: var(--ai-accent);
+  transform: translateY(-1px);
+}
+
+.avatar-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: none;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.18);
 }
 
 .chat-title {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
+  min-width: 0;
 }
 
 .avatar-wrapper {
   position: relative;
-}
-
-.avatar-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
 }
 
 .status-dot {
   position: absolute;
-  bottom: 1px;
-  right: 1px;
-  width: 12px;
-  height: 12px;
-  background: #22c55e;
+  right: 0;
+  bottom: 0;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  border: 3px solid #667eea;
-  animation: status-blink 2s infinite;
-}
-
-@keyframes status-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  background: #62c462;
+  border: 2px solid #fff;
 }
 
 .title-text {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .title-name {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
+  color: var(--ai-ink, #1a1d24);
 }
 
 .title-status {
-  font-size: 12px;
-  opacity: 0.85;
-  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ai-muted, #6b7280);
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
-.model-select {
-  max-width: 128px;
-  height: 28px;
-  border: none;
-  border-radius: 14px;
-  padding: 0 8px;
-  font-size: 11px;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.18);
-  cursor: pointer;
-  outline: none;
-}
-
-.model-select option {
-  color: #303133;
-  background: #fff;
-}
-
-.header-icon-btn {
-  background: rgba(255, 255, 255, 0.15);
-  border: none;
-  color: #fff;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.header-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
-  transform: scale(1.05);
-}
-
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
-  min-height: 0;
-}
-
-.chat-messages::-webkit-scrollbar {
-  width: 4px;
-}
-
-.chat-messages::-webkit-scrollbar-track {
+.ai-chat-panel :deep(.ai-chat-shell) {
   background: transparent;
 }
 
-.chat-messages::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 2px;
+.ai-chat-panel :deep(.ai-chat-composer) {
+  background: transparent;
 }
 
-.chat-messages::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
-}
-
-.message {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  flex: 0 0 auto;
-  width: 100%;
-}
-
-.message-avatar {
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  overflow: hidden;
-}
-
-.message-avatar svg,
-.message-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.user-message {
-  flex-direction: row-reverse;
-}
-
-.user-message .message-avatar {
-  margin-left: 0;
-}
-
-.message-content {
-  flex: 0 1 auto;
-  max-width: 78%;
-  width: fit-content;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
-  align-self: flex-start;
-}
-
-.user-message .message-content {
-  align-self: flex-end;
-  align-items: flex-end;
-}
-
-.message-text {
-  display: block;
-  width: fit-content;
-  max-width: 100%;
-  height: fit-content;
-  padding: 14px 18px;
-  border-radius: 20px;
-  font-size: 14px;
-  line-height: 1.6;
-  word-break: break-word;
-}
-
-.message-text :deep(p) {
-  margin: 0 0 8px;
-}
-
-.message-text :deep(p:last-child) {
-  margin-bottom: 0;
-}
-
-.message-text :deep(h3),
-.message-text :deep(h4) {
-  margin: 10px 0 6px;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.message-text :deep(h3:first-child),
-.message-text :deep(h4:first-child) {
-  margin-top: 0;
-}
-
-.message-text :deep(ul),
-.message-text :deep(ol) {
-  margin: 6px 0 10px;
-  padding-left: 20px;
-}
-
-.message-text :deep(li) {
-  margin: 4px 0;
-}
-
-.message-text :deep(strong) {
-  font-weight: 600;
-}
-
-.ai-message .message-text {
-  background: #fff;
-  color: #1f2937;
-  border-radius: 4px 20px 20px 20px;
-  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
-  border: 1px solid #f3f4f6;
-}
-
-.user-message .message-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-  margin-left: auto;
-  border-radius: 20px 4px 20px 20px;
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
-}
-
-.message-time {
-  font-size: 11px;
-  color: #9ca3af;
-  padding: 0 6px;
-}
-
-.ai-message .message-time {
-  align-self: flex-start;
-}
-
-.user-message .message-time {
-  align-self: flex-end;
-}
-
-.loading-indicator {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-}
-
-.loading-bubble {
-  background: #fff;
-  padding: 14px 20px;
-  border-radius: 4px 20px 20px 20px;
-  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
-  border: 1px solid #f3f4f6;
-}
-
-.loading-dots {
-  display: flex;
-  gap: 6px;
-}
-
-.loading-dots .dot {
-  width: 8px;
-  height: 8px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
-  animation: loading-bounce 1.4s infinite ease-in-out both;
-}
-
-.loading-dots .dot:nth-child(1) { animation-delay: -0.32s; }
-.loading-dots .dot:nth-child(2) { animation-delay: -0.16s; }
-
-@keyframes loading-bounce {
-  0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
-  40% { transform: scale(1); opacity: 1; }
-}
-
-.loading-bubble {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.loading-text {
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.chat-input {
-  padding: 16px 24px;
-  background: #fff;
-  border-top: 1px solid #f3f4f6;
-}
-
-.input-wrapper {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.img-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  color: #667eea;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.img-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.float-pending-images {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  padding: 8px 12px 0;
-}
-
-.float-pending-item {
-  position: relative;
-  width: 48px;
-  height: 48px;
-}
-
-.float-pending-item img {
-  width: 48px;
-  height: 48px;
-  object-fit: cover;
-  border-radius: 6px;
-}
-
-.float-pending-item button {
+.resize-handle {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 16px;
-  height: 16px;
-  border: none;
-  border-radius: 50%;
-  background: #f56c6c;
-  color: #fff;
-  font-size: 11px;
-  line-height: 16px;
-  padding: 0;
-  cursor: pointer;
-}
-
-.input-field {
-  flex: 1;
-  padding: 14px 20px;
-  border: 1px solid #e5e7eb;
-  border-radius: 28px;
-  font-size: 14px;
-  outline: none;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  background: #f9fafb;
-}
-
-.input-field:focus {
-  border-color: #667eea;
-  background: #fff;
-  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.12);
-}
-
-.input-field::placeholder {
-  color: #9ca3af;
-}
-
-.send-btn {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: none;
-  color: #fff;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  flex-shrink: 0;
-}
-
-.send-btn:hover:not(:disabled) {
-  transform: scale(1.08);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-}
-
-.send-btn:active:not(:disabled) {
-  transform: scale(0.95);
-}
-
-.send-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.stop-send-btn {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-}
-
-.stop-send-btn:hover {
-  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.quick-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 14px;
-  flex-wrap: wrap;
-}
-
-.quick-action-btn {
-  padding: 8px 18px;
-  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
-  border: 1px solid #e5e7eb;
-  border-radius: 20px;
-  font-size: 13px;
-  color: #4b5563;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.quick-action-btn:hover {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-color: transparent;
-  color: #fff;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.35);
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  background:
+    linear-gradient(135deg, transparent 50%, var(--ai-border) 50%, var(--ai-border) 60%, transparent 60%),
+    linear-gradient(135deg, transparent 70%, var(--ai-muted) 70%, var(--ai-muted) 80%, transparent 80%);
+  opacity: 0.7;
 }
 
 .chat-panel-enter-active,
 .chat-panel-leave-active {
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .chat-panel-enter-from,
 .chat-panel-leave-to {
   opacity: 0;
-  transform: translateY(20px) scale(0.95);
-}
-
-.chat-panel-enter-to,
-.chat-panel-leave-from {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-
-.resize-handle {
-  position: absolute;
-  bottom: 6px;
-  right: 6px;
-  width: 22px;
-  height: 22px;
-  cursor: nwse-resize;
-  background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 20;
-  touch-action: none;
-}
-
-.resize-handle:hover {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.resize-handle::after {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-right: 2px solid #9ca3af;
-  border-bottom: 2px solid #9ca3af;
-  transform: rotate(-45deg);
-}
-
-.resize-handle:hover::after {
-  border-right-color: #fff;
-  border-bottom-color: #fff;
+  transform: scale(0.96) translateY(8px);
 }
 </style>
