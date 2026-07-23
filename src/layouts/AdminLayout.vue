@@ -31,6 +31,13 @@
             <div class="light-mask"></div>
             <template #title>名单管理</template>
           </el-menu-item>
+          <el-menu-item index="/admin/search" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('student')">
+            <div class="light-mask"></div>
+            <template #icon>
+              <span class="menu-icon">🔍</span>
+            </template>
+            <template #title>全局搜索</template>
+          </el-menu-item>
           <el-menu-item index="/admin/statistics" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('statistics')">
             <div class="light-mask"></div>
             <template #title>数据统计</template>
