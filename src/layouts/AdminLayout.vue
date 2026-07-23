@@ -21,23 +21,14 @@
         >
           <el-menu-item index="/admin/dashboard" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('dashboard')">
             <div class="light-mask"></div>
-            <template #icon>
-              <span class="menu-icon">🏠</span>
-            </template>
             <template #title>管理首页</template>
           </el-menu-item>
           <el-menu-item index="/admin/batch" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('batch')">
             <div class="light-mask"></div>
-            <template #icon>
-              <span class="menu-icon">📋</span>
-            </template>
             <template #title>批次管理</template>
           </el-menu-item>
           <el-menu-item index="/admin/student" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('student')">
             <div class="light-mask"></div>
-            <template #icon>
-              <span class="menu-icon">👥</span>
-            </template>
             <template #title>名单管理</template>
           </el-menu-item>
           <el-menu-item index="/admin/search" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('student')">
@@ -49,37 +40,22 @@
           </el-menu-item>
           <el-menu-item index="/admin/statistics" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('statistics')">
             <div class="light-mask"></div>
-            <template #icon>
-              <span class="menu-icon">📈</span>
-            </template>
             <template #title>数据统计</template>
           </el-menu-item>
           <el-menu-item index="/admin/template" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('template')">
             <div class="light-mask"></div>
-            <template #icon>
-              <span class="menu-icon">📝</span>
-            </template>
             <template #title>报告模板配置</template>
           </el-menu-item>
           <el-menu-item index="/admin/verify" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('verify')">
             <div class="light-mask"></div>
-            <template #icon>
-              <span class="menu-icon">✅</span>
-            </template>
             <template #title>核销管理</template>
           </el-menu-item>
           <el-menu-item index="/admin/import" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('import')">
             <div class="light-mask"></div>
-            <template #icon>
-              <span class="menu-icon">📥</span>
-            </template>
             <template #title>数据导入</template>
           </el-menu-item>
           <el-menu-item index="/admin/message" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" class="menu-item-with-badge" v-if="hasPermission('message')">
             <div class="light-mask"></div>
-            <template #icon>
-              <span class="menu-icon">💬</span>
-            </template>
             <template #title>留言审核</template>
             <span v-if="pendingMessageCount > 0" class="custom-badge">
               {{ pendingMessageCount > 99 ? '99+' : pendingMessageCount }}
@@ -87,32 +63,26 @@
           </el-menu-item>
           <el-menu-item index="/admin/permission" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('permission')">
             <div class="light-mask"></div>
-            <template #icon>
-              <span class="menu-icon">🔑</span>
-            </template>
             <template #title>权限管理</template>
           </el-menu-item>
-          <el-menu-item index="/admin/ai" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('ai')">
-            <div class="light-mask"></div>
-            <template #icon>
-              <span class="menu-icon">🤖</span>
+          <el-sub-menu index="ai-group" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('ai')">
+            <template #title>
+              <div class="light-mask"></div>
+              <span>AI 功能</span>
             </template>
-            <template #title>AI 助手</template>
-          </el-menu-item>
-          <el-menu-item index="/admin/ai-history" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('ai')">
-            <div class="light-mask"></div>
-            <template #icon>
-              <span class="menu-icon">📋</span>
-            </template>
-            <template #title>AI 历史</template>
-          </el-menu-item>
-          <el-menu-item index="/admin/ai-risk" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave" v-if="hasPermission('ai')">
-            <div class="light-mask"></div>
-            <template #icon>
-              <span class="menu-icon">🛡️</span>
-            </template>
-            <template #title>AI 风控</template>
-          </el-menu-item>
+            <el-menu-item index="/admin/ai" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+              <div class="light-mask"></div>
+              <template #title>AI 助手</template>
+            </el-menu-item>
+            <el-menu-item index="/admin/ai-history" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+              <div class="light-mask"></div>
+              <template #title>AI 历史</template>
+            </el-menu-item>
+            <el-menu-item index="/admin/ai-risk" @mousemove="handleMenuItemMouseMove" @mouseleave="handleMenuItemMouseLeave">
+              <div class="light-mask"></div>
+              <template #title>AI 风控</template>
+            </el-menu-item>
+          </el-sub-menu>
         </el-menu>
         <div class="sidebar-footer">
           <div class="user-info" v-if="auth.state.user">
@@ -312,12 +282,22 @@ onUnmounted(() => {
 })
 
 const handleMenuItemMouseMove = (e) => {
-  const menuItem = e.currentTarget
-  const mask = menuItem.querySelector('.light-mask')
+  const target = e.currentTarget
+  let mask = target.querySelector('.light-mask')
+  
+  if (!mask) {
+    mask = target.querySelector('.el-sub-menu__title .light-mask')
+  }
+  
   if (!mask) return
   
-  // 根据菜单项是否激活切换光影颜色
-  const isActive = menuItem.classList.contains('is-active')
+  const menuItem = target.classList.contains('el-menu-item') 
+    ? target 
+    : target.querySelector('.el-sub-menu__title')
+  
+  if (!menuItem) return
+  
+  const isActive = menuItem.classList.contains('is-active') || menuItem.closest('.is-active')
   const bg = isActive 
     ? 'radial-gradient(circle, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.2) 40%, rgba(255,255,255,0) 70%)'
     : 'radial-gradient(circle, rgba(72, 202, 228, 0.4) 0%, rgba(72, 202, 228, 0.1) 40%, rgba(72, 202, 228, 0) 70%)'
@@ -333,7 +313,12 @@ const handleMenuItemMouseMove = (e) => {
 }
 
 const handleMenuItemMouseLeave = (e) => {
-  const mask = e.currentTarget.querySelector('.light-mask')
+  let mask = e.currentTarget.querySelector('.light-mask')
+  
+  if (!mask) {
+    mask = e.currentTarget.querySelector('.el-sub-menu__title .light-mask')
+  }
+  
   if (mask) {
     mask.style.opacity = '0'
   }
@@ -520,7 +505,8 @@ const handleSwitchAccount = async () => {
   border-right: none;
 }
 
-.sidebar-menu :deep(.el-menu-item) {
+.sidebar-menu :deep(.el-menu-item),
+.sidebar-menu :deep(.el-sub-menu__title) {
   margin: 4px 4px;
   border-radius: 12px;
   height: 44px;
@@ -530,7 +516,8 @@ const handleSwitchAccount = async () => {
   overflow: hidden;
 }
 
-.sidebar-menu :deep(.el-menu-item) .light-mask {
+.sidebar-menu :deep(.el-menu-item) .light-mask,
+.sidebar-menu :deep(.el-sub-menu .el-sub-menu__title) .light-mask {
   position: absolute;
   width: 200px;
   height: 200px;
@@ -546,7 +533,8 @@ const handleSwitchAccount = async () => {
   will-change: left, top, opacity;
 }
 
-.sidebar-menu :deep(.el-menu-item:hover) {
+.sidebar-menu :deep(.el-menu-item:hover),
+.sidebar-menu :deep(.el-sub-menu__title:hover) {
   background: #EDF5F3;
   border-radius: 12px;
   transform: translateX(5px);
