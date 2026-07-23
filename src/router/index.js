@@ -82,6 +82,11 @@ const routes = [
         component: () => import('../views/AdminStudent.vue')
       },
       {
+        path: 'search',
+        name: 'AdminGlobalSearch',
+        component: () => import('../views/AdminGlobalSearch.vue')
+      },
+      {
         path: 'statistics',
         name: 'AdminStatistics',
         component: () => import('../views/AdminStatistics.vue')
