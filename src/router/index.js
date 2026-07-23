@@ -52,6 +52,11 @@ const routes = [
     component: () => import('../views/StudentLogin.vue')
   },
   {
+    path: '/postcard-share',
+    name: 'PostcardShare',
+    component: () => import('../views/PostcardShareView.vue')
+  },
+  {
     path: '/admin/login',
     name: 'AdminLogin',
     component: () => import('../views/AdminLogin.vue')
@@ -145,6 +150,13 @@ router.beforeEach((to, from, next) => {
   const auth = useAuth()
   const currentRole = auth.state.role?.toUpperCase()
 
+  // ★ 进入登录页时记录来源路径（不记录登录页之间的跳转）
+  // 登录成功后登录页会读 sessionStorage.login_return_path 跳回原页面
+  if ((to.path === '/login' || to.path === '/admin/login')
+      && from.path && from.path !== '/login' && from.path !== '/admin/login') {
+    sessionStorage.setItem('login_return_path', from.fullPath)
+  }
+
   if (to.path === '/admin/login' || to.path === '/login') {
     next()
     return
@@ -184,16 +196,15 @@ router.beforeEach((to, from, next) => {
     }
   }
 
+  // ★ 登录页（/login 学生登录、/admin/login 管理员登录）始终可进入，不做"已登录自动跳走"反向逻辑
+  // 这样已登录用户也能主动进入登录页选择退出/换号，行为完全由用户点击触发
   if (auth.state.isLoggedIn && currentRole === 'STUDENT') {
-    if (to.path === '/login') {
-      next('/student/verify')
-      return
-    }
+    // 学生已登录访问 /admin/* 时阻断（防止学生误入管理后台）
     if (to.path.startsWith('/admin')) {
       if (to.path.startsWith('/admin/student-report/')) {
         const studentId = to.params.studentId
         const currentStudentId = auth.state.user?.studentId || localStorage.getItem('student_id')
-        
+
         if (studentId === currentStudentId) {
           next()
           return
@@ -203,24 +214,6 @@ router.beforeEach((to, from, next) => {
         }
       }
       next('/')
-      return
-    }
-  }
-
-  if (auth.state.isLoggedIn && currentRole === 'ADMIN') {
-    if (to.path === '/login') {
-      next('/admin/dashboard')
-      return
-    }
-  }
-
-  if (auth.state.isLoggedIn && currentRole === 'ASSISTANT') {
-    if (to.path === '/login') {
-      next('/admin/dashboard')
-      return
-    }
-    if (to.path.startsWith('/admin')) {
-      next()
       return
     }
   }

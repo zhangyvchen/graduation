@@ -75,33 +75,39 @@ const handleLogin = async () => {
       // 清理可能残留的学生 token，避免 admin 登录后学生请求被污染
       localStorage.removeItem('student_token')
       localStorage.removeItem('student_info')
-      localStorage.setItem('token', data.token)
-      const userData = {
+      sessionStorage.removeItem('student_token')
+      sessionStorage.removeItem('student_info')
+      // ★ 关键修复：与 request.js 拦截器保持一致，统一存到 sessionStorage
+      // request.js 读的是 sessionStorage.getItem('graduation_auth')，
+      // 必须用 auth.login() 写入（它会处理 sessionStorage），
+      // 不要再单独 setItem('token', ...)，否则两套存储会脱节
+      auth.login({
         token: data.token,
         id: data.id,
         username: data.username,
         name: data.name,
-        role: data.role || 'admin'
-      }
-      auth.login({
-        ...userData,
-        role: (userData.role || 'admin').toUpperCase()
+        role: (data.role || 'admin').toUpperCase()
       })
       console.log('[admin login success] role=', auth.state.role, 'token=', data.token?.slice(0, 20))
       ElMessage.success('登录成功')
-      
-      const redirect = route.query.redirect
-      const defaultRoute = '/admin/dashboard'
-      if (redirect && typeof redirect === 'string') {
-        const allowedPrefixes = ['/admin', '/report']
-        const isValidRedirect = allowedPrefixes.some(prefix => redirect.startsWith(prefix))
+
+      // 优先跳转：1) URL 上的 redirect 参数（白名单） 2) 点击登录按钮时记录的来源页  3) 首页
+      const urlRedirect = route.query.redirect
+      const returnPath = sessionStorage.getItem('login_return_path')
+      sessionStorage.removeItem('login_return_path')
+
+      if (urlRedirect && typeof urlRedirect === 'string') {
+        const allowedPrefixes = ['/admin', '/report', '/']
+        const isValidRedirect = allowedPrefixes.some(prefix => urlRedirect.startsWith(prefix))
         if (isValidRedirect) {
-          router.push(redirect)
+          router.push(urlRedirect)
         } else {
-          router.push(defaultRoute)
+          router.push('/')
         }
+      } else if (returnPath && returnPath !== '/login' && returnPath !== '/admin/login') {
+        router.push(returnPath)
       } else {
-        router.push(defaultRoute)
+        router.push('/')
       }
     } else {
       ElMessage.error(response.message || '登录失败')
