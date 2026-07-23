@@ -429,3 +429,27 @@ export function saveAdminPermissions(id, data) {
     data
   })
 }
+
+/** 全局模糊搜索（ES 优先，MySQL 回退） */
+export function globalSearch(params) {
+  return request({
+    url: '/search/global',
+    method: 'get',
+    params
+  })
+}
+
+export function getSearchStatus() {
+  return request({
+    url: '/search/status',
+    method: 'get'
+  })
+}
+
+export function syncSearchIndex(year) {
+  return request({
+    url: '/search/es/sync',
+    method: 'post',
+    params: year != null ? { year } : {}
+  })
+}
