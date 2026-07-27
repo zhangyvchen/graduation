@@ -196,11 +196,13 @@ const handleLogin = async () => {
     if (res.code === 200) {
       const data = res.data
       // 清理可能残留的管理员 token，避免 student 登录后 admin token 污染学生请求
+      // ★ 关键修复：与 request.js 拦截器保持一致，只用 auth.login() 写入 sessionStorage
+      // 不要再单独 setItem('student_token', ...)，否则两套存储会脱节
       localStorage.removeItem('token')
-      localStorage.setItem('student_token', data.token)
-      localStorage.setItem('student_id', data.studentId)
+      localStorage.removeItem('student_token')
+      localStorage.removeItem('student_id')
 
-      // 记住学号
+      // 记住学号（仅 localStorage，跨会话保留）
       if (rememberMe.value) {
         localStorage.setItem('remember_student_id', data.studentId)
       } else {
@@ -208,6 +210,7 @@ const handleLogin = async () => {
       }
 
       const userInfo = {
+        token: data.token,
         studentId: data.studentId,
         name: data.name,
         className: data.className,
@@ -221,13 +224,18 @@ const handleLogin = async () => {
       auth.login(userInfo)
 
       ElMessage.success(`欢迎回来，${data.name}！`)
-      
-      // 处理跳转逻辑：优先跳转 redirect 参数指定的页面
-      const redirect = route.query.redirect
-      if (redirect && typeof redirect === 'string') {
-        router.push(redirect)
+
+      // 优先跳转：1) URL 上的 redirect 参数  2) 点击登录按钮时记录的来源页  3) 首页
+      const urlRedirect = route.query.redirect
+      const returnPath = sessionStorage.getItem('login_return_path')
+      sessionStorage.removeItem('login_return_path')
+
+      if (urlRedirect && typeof urlRedirect === 'string') {
+        router.push(urlRedirect)
+      } else if (returnPath && returnPath !== '/login' && returnPath !== '/admin/login') {
+        router.push(returnPath)
       } else {
-        router.push('/student/profile')
+        router.push('/')
       }
     } else {
       ElMessage.error(res.message || '登录失败')
