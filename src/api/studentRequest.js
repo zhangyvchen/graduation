@@ -1,4 +1,4 @@
-import request from './request'
+import axios from 'axios'
 
 const studentRequest = axios.create({
   baseURL: '/api',
