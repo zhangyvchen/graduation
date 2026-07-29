@@ -1,17 +1,22 @@
 <template>
   <div class="data-story" v-if="text">
-    <div class="story-icon">🎙️</div>
+    <div class="story-icon">
+      <el-icon><Microphone /></el-icon>
+    </div>
     <div class="story-content">
       <div class="story-text" v-html="displayText"></div>
       <div class="story-actions">
         <el-button size="small" type="primary" link @click="speak">
-          🔊 播报
+          <el-icon class="action-icon"><Headset /></el-icon>
+          播报
         </el-button>
         <el-button size="small" type="primary" link @click="regenerate">
-          🔄 重新解说
+          <el-icon class="action-icon"><RefreshRight /></el-icon>
+          重新解说
         </el-button>
         <el-button size="small" type="primary" link @click="copyText">
-          📋 复制
+          <el-icon class="action-icon"><DocumentCopy /></el-icon>
+          复制
         </el-button>
       </div>
     </div>
@@ -21,9 +26,10 @@
 <script setup>
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Microphone, Headset, RefreshRight, DocumentCopy } from '@element-plus/icons-vue'
 
 const props = defineProps({
-  // 故事文本（支持Markdown加粗 **文本**）
+  // 故事文本
   text: {
     type: String,
     default: ''
@@ -107,7 +113,7 @@ const speak = () => {
   if (zhVoice) utterance.voice = zhVoice
 
   window.speechSynthesis.speak(utterance)
-  ElMessage.success('🔊 开始播报')
+  ElMessage.success('开始播报')
 }
 
 // 重新解说
@@ -122,7 +128,7 @@ const copyText = async () => {
   if (!text) return
   try {
     await navigator.clipboard.writeText(text)
-    ElMessage.success('📋 已复制到剪贴板')
+    ElMessage.success('已复制到剪贴板')
   } catch {
     ElMessage.warning('复制失败，请手动复制')
   }
@@ -147,24 +153,33 @@ onUnmounted(() => {
 <style scoped>
 .data-story {
   display: flex;
-  gap: 14px;
-  padding: 16px 20px;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
-  border-radius: 16px;
-  border-left: 4px solid #667eea;
-  margin-bottom: 20px;
-  transition: all 0.3s ease;
+  gap: 16px;
+  padding: 20px 24px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-light);
+  border-left: 4px solid var(--accent);
+  box-shadow: var(--shadow);
+  margin-bottom: 24px;
+  transition: box-shadow var(--duration-fast), transform var(--duration-fast);
 }
 
 .data-story:hover {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.12) 100%);
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.1);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
 }
 
 .story-icon {
-  font-size: 28px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   flex-shrink: 0;
-  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+  color: #fff;
+  font-size: 20px;
 }
 
 .story-content {
@@ -175,32 +190,50 @@ onUnmounted(() => {
 .story-text {
   font-size: 15px;
   line-height: 1.8;
-  color: #2c3e50;
-  font-family: 'Microsoft YaHei', sans-serif;
+  color: var(--text-2);
   word-break: break-word;
 }
 
 .story-text :deep(strong) {
-  color: #667eea;
+  color: var(--accent);
   font-weight: 700;
-  background: rgba(102, 126, 234, 0.12);
+  background: var(--accent-subtle);
   padding: 0 6px;
   border-radius: 4px;
 }
 
 .story-actions {
-  margin-top: 10px;
+  margin-top: 12px;
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .story-actions :deep(.el-button) {
   font-size: 13px;
-  color: #667eea;
+  color: var(--primary-lighter);
+  font-weight: 500;
 }
 
 .story-actions :deep(.el-button:hover) {
-  color: #764ba2;
+  color: var(--accent);
+}
+
+.action-icon {
+  margin-right: 4px;
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .data-story {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .story-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
 }
 </style>

@@ -20,24 +20,25 @@
     <!-- 底部控制区 -->
     <div class="danmaku-control">
       <div class="danmaku-input-group">
+        <el-icon class="control-icon"><ChatDotRound /></el-icon>
         <el-input
             v-model="newDanmaku"
-            placeholder="发送毕业祝福..."
+            placeholder="留下一句毕业祝福..."
             size="small"
             maxlength="50"
             @keyup.enter="sendDanmaku"
-            :style="{ width: '220px' }"
+            :style="{ width: '240px' }"
         />
         <el-button size="small" type="primary" @click="sendDanmaku" :disabled="!newDanmaku.trim()">
-          🚀 发射
+          <el-icon class="btn-icon"><Promotion /></el-icon>
+          发送
         </el-button>
-        <!-- 开关按钮改成更明显的样式 -->
         <el-button
             size="small"
             :type="enabled ? 'warning' : 'success'"
             @click="toggleDanmaku"
         >
-          <span style="margin-right: 4px;">{{ enabled ? '✖' : '💬' }}</span>
+          <el-icon class="btn-icon"><CircleClose v-if="enabled" /><ChatLineRound v-else /></el-icon>
           {{ enabled ? '关闭弹幕' : '开启弹幕' }}
         </el-button>
       </div>
@@ -46,9 +47,13 @@
 
   <!-- 弹幕关闭时的提示条 -->
   <div v-else class="danmaku-closed">
-    <span>💬 弹幕已关闭</span>
+    <div class="closed-info">
+      <el-icon class="closed-icon"><ChatLineRound /></el-icon>
+      <span>弹幕已关闭</span>
+    </div>
     <el-button size="small" type="primary" @click="toggleDanmaku">
-      🔄 点击重新开启
+      <el-icon class="btn-icon"><RefreshRight /></el-icon>
+      重新开启
     </el-button>
   </div>
 </template>
@@ -56,16 +61,24 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { ChatDotRound, Promotion, CircleClose, ChatLineRound, RefreshRight } from '@element-plus/icons-vue'
 
 const props = defineProps({
   presets: {
     type: Array,
     default: () => [
-      '🎓 毕业快乐！', '🚀 前程似锦！', '💪 加油2024！',
-      '🌟 未来可期！', '📚 感谢母校！', '🌈 青春不散场！',
-      '❤️ 我爱新大！', '🔥 人生巅峰！', '💫 星辰大海！',
-      '👋 再见青春！', '🎉 我们毕业啦！', '✨ 闪闪发光！',
-      '🏆 做最好的自己！', '🌊 乘风破浪！', '🎯 梦想成真！'
+      '毕业快乐，前程似锦',
+      '愿此去繁花似锦',
+      '奔赴下一场山海',
+      '保持热爱，奔赴未来',
+      '山水万程，皆有好运',
+      '以梦为马，不负韶华',
+      '青春不散场，未来皆可期',
+      '感谢遇见，后会有期',
+      '愿你眼里有光，心中有爱',
+      '乘风破浪，未来可期',
+      '愿归来仍是少年',
+      '逐梦远行，顶峰相见'
     ]
   },
   autoInterval: {
@@ -82,10 +95,14 @@ const enabled = ref(true)
 let autoTimer = null
 let idCounter = 0
 
+// 克制配色：主色、强调色、辅助色的低饱和版本
 const colors = [
-  '#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff',
-  '#ff6bff', '#ff9f43', '#00d2d3', '#f368e0',
-  '#54a0ff', '#5f27cd', '#01a3a4', '#f8a5c2'
+  'rgba(30, 41, 59, 0.75)',
+  'rgba(217, 119, 6, 0.85)',
+  'rgba(79, 70, 229, 0.8)',
+  'rgba(13, 148, 136, 0.8)',
+  'rgba(2, 132, 199, 0.8)',
+  'rgba(5, 150, 105, 0.8)'
 ]
 
 const addDanmaku = (text, isUser = false) => {
@@ -95,12 +112,12 @@ const addDanmaku = (text, isUser = false) => {
   const item = {
     id: idCounter++,
     text: text.trim(),
-    top: Math.random() * 75 + 10,
+    top: Math.random() * 70 + 12,
     color: colors[Math.floor(Math.random() * colors.length)],
-    size: Math.random() * 10 + 18,
-    duration: Math.random() * 6 + 6,
+    size: Math.random() * 6 + 16,
+    duration: Math.random() * 6 + 8,
     delay: Math.random() * 1.5,
-    opacity: Math.random() * 0.3 + 0.6
+    opacity: Math.random() * 0.2 + 0.75
   }
 
   danmakuList.value.push(item)
@@ -110,7 +127,7 @@ const addDanmaku = (text, isUser = false) => {
   }
 
   if (isUser) {
-    ElMessage.success('💬 弹幕已发射！')
+    ElMessage.success('弹幕已发送')
     emit('send', text)
   }
 }
@@ -125,13 +142,12 @@ const sendDanmaku = () => {
 const toggleDanmaku = () => {
   enabled.value = !enabled.value
   if (enabled.value) {
-    ElMessage.success('💬 弹幕已开启')
-    // 立即生成一条欢迎弹幕
+    ElMessage.success('弹幕已开启')
     setTimeout(() => {
-      addDanmaku('🎉 弹幕回来啦！继续嗨起来！')
+      addDanmaku('弹幕已开启，欢迎留下你的祝福')
     }, 300)
   } else {
-    ElMessage.info('💬 弹幕已关闭')
+    ElMessage.info('弹幕已关闭')
     danmakuList.value = []
   }
 }
@@ -158,10 +174,10 @@ onUnmounted(() => {
 .danmaku-container {
   position: relative;
   width: 100%;
-  min-height: 60px;
+  min-height: 64px;
   overflow: hidden;
   pointer-events: none;
-  margin-bottom: 10px;
+  margin-bottom: 16px;
 }
 
 .danmaku-item {
@@ -169,12 +185,11 @@ onUnmounted(() => {
   left: 0;
   white-space: nowrap;
   animation: danmakuMove linear infinite;
-  font-weight: bold;
-  text-shadow: 0 0 15px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.1);
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
   z-index: 999;
   pointer-events: none;
   user-select: none;
-  font-family: 'Microsoft YaHei', sans-serif;
   letter-spacing: 0.5px;
   will-change: transform;
 }
@@ -194,49 +209,89 @@ onUnmounted(() => {
   pointer-events: auto;
   display: flex;
   justify-content: flex-end;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(8px);
-  border-radius: 12px;
-  margin-top: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  padding: 10px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  margin-top: 12px;
+  box-shadow: var(--shadow);
 }
 
 .danmaku-input-group {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
 }
 
-.danmaku-input-group :deep(.el-input__wrapper) {
-  border-radius: 20px;
+.control-icon {
+  color: var(--accent);
+  font-size: 18px;
 }
 
-.danmaku-input-group :deep(.el-button) {
-  border-radius: 20px;
+.btn-icon {
+  margin-right: 4px;
+  font-size: 14px;
+}
+
+.danmaku-input-group :deep(.el-input__wrapper) {
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px var(--border) inset;
+}
+
+.danmaku-input-group :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px var(--accent) inset;
 }
 
 /* ===== 弹幕关闭时的提示条 ===== */
 .danmaku-closed {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: 16px;
   padding: 12px 20px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(8px);
-  border-radius: 12px;
-  margin-bottom: 10px;
-  border: 2px dashed #ddd;
-  color: #999;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+  color: var(--text-3);
   font-size: 14px;
 }
 
-.danmaku-closed :deep(.el-button) {
-  border-radius: 20px;
+.closed-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.danmaku-closed span {
+.closed-icon {
+  color: var(--accent);
+  font-size: 18px;
+}
+
+.danmaku-closed :deep(.el-button) {
+  border-radius: 999px;
   font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .danmaku-control {
+    justify-content: center;
+  }
+
+  .danmaku-input-group {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .danmaku-input-group :deep(.el-input) {
+    flex: 1;
+    min-width: 160px;
+  }
+
+  .danmaku-closed {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 </style>
