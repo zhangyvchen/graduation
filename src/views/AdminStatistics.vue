@@ -2,7 +2,7 @@
   <div class="statistics-page">
     <header class="content-header">
       <h2>数据统计</h2>
-      <el-select v-model="selectedYear" placeholder="选择年份" style="width: 150px">
+      <el-select v-model="selectedYear" placeholder="选择年份" style="width: 150px" @change="handleYearChange">
         <el-option v-for="year in years" :key="year" :label="year + '届'" :value="year" />
       </el-select>
     </header>
@@ -32,7 +32,7 @@
       <el-card class="stat-card">
         <div class="stat-icon">💰</div>
         <div class="stat-info">
-          <div class="stat-value">{{ statistics.averageSalary }}K</div>
+          <div class="stat-value">{{ formatSalary(statistics.averageSalary) }}K</div>
           <div class="stat-label">平均薪资</div>
         </div>
       </el-card>
@@ -41,33 +41,17 @@
     <div class="charts-row">
       <el-card class="chart-card">
         <template #header>
-          <span>就业去向分布</span>
+          <span>专业就业率对比</span>
+          <span class="chart-tip">（点击柱形查看详情）</span>
         </template>
-        <div ref="employmentChart" class="chart-container"></div>
+        <div ref="majorChart" class="chart-container-major"></div>
       </el-card>
       <el-card class="chart-card">
         <template #header>
-          <span>专业就业率对比</span>
-        </template>
-        <div ref="majorChart" class="chart-container"></div>
-      </el-card>
-    </div>
-    
-    <div class="charts-row">
-      <el-card class="chart-card-full">
-        <template #header>
-          <span>历年就业率趋势</span>
-        </template>
-        <div ref="trendChart" class="chart-container-full"></div>
-      </el-card>
-    </div>
-    
-    <div class="stats-detail">
-      <el-card>
-        <template #header>
           <span>就业单位类型分布</span>
+          <span class="chart-tip">（点击行查看详情）</span>
         </template>
-        <el-table :data="companyTypeData" border>
+        <el-table :data="companyTypeData" border @row-click="handleCompanyTypeClick" highlight-current-row>
           <el-table-column prop="type" label="单位类型" />
           <el-table-column prop="count" label="人数" />
           <el-table-column prop="percentage" label="占比(%)" />
@@ -81,19 +65,87 @@
         </el-table>
       </el-card>
     </div>
+    
+    <div class="charts-row">
+      <el-card class="chart-card-full">
+        <template #header>
+          <span>历年就业率趋势</span>
+        </template>
+        <div ref="trendChart" class="chart-container-full"></div>
+      </el-card>
+    </div>
+    
+    <!-- 学生详情弹窗 -->
+    <el-dialog v-model="detailDialogVisible" :title="detailDialogTitle" width="900px" top="5vh">
+      <div v-if="detailLoading" style="text-align: center; padding: 40px;">
+        <el-icon class="is-loading" :size="32" color="#48CAE4"><Loading /></el-icon>
+        <p>加载中...</p>
+      </div>
+      <div v-else>
+        <div class="detail-summary">
+          <span>共 <strong>{{ studentDetailList.length }}</strong> 名学生</span>
+        </div>
+        <el-table :data="studentDetailList" border stripe max-height="500">
+          <el-table-column type="index" label="#" width="60" />
+          <el-table-column prop="studentId" label="学号" width="120" />
+          <el-table-column prop="name" label="姓名" width="80" />
+          <el-table-column prop="gender" label="性别" width="60" />
+          <el-table-column prop="major" label="专业" show-overflow-tooltip />
+          <el-table-column prop="className" label="班级" width="100" />
+          <el-table-column prop="employmentStatus" label="就业状态" width="100">
+            <template #default="scope">
+              <el-tag :type="getStatusTagType(scope.row.employmentStatus)" size="small">
+                {{ scope.row.employmentStatus }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="companyName" label="公司/单位" show-overflow-tooltip />
+          <el-table-column prop="jobTitle" label="职位" width="100" />
+          <el-table-column prop="salary" label="薪资" width="100">
+            <template #default="scope">
+              <span v-if="scope.row.salary">¥{{ Number(scope.row.salary).toLocaleString() }}</span>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="schoolName" label="升学学校" show-overflow-tooltip />
+        </el-table>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, onMounted, nextTick } from 'vue'
 import * as echarts from 'echarts'
-import { getStatisticsByYear, getStatisticsOverview, getStatisticsTrend, getCompanyTypes, getMajorRates, getEmploymentDistribution } from '../api/batch'
+import { ElMessage } from 'element-plus'
+import { Loading } from '@element-plus/icons-vue'
+import { getStatisticsByYear, getStatisticsTrend, getCompanyTypes, getMajorRates, getStudentYears, getStatisticsStudents } from '../api/batch'
+import { getAdminPermissions } from '../api/admin'
+import { useAuth } from '../stores/auth'
 
-const route = useRoute()
+const auth = useAuth()
+const userPermissions = ref([])
 
-const years = ref([2024])
-const selectedYear = ref(parseInt(route.query.year) || 2024)
+const hasPermission = (module) => {
+  if (auth.state.role?.toUpperCase() === 'ADMIN') return true
+  return userPermissions.value.some(p => p.module === module)
+}
+
+const fetchUserPermissions = async () => {
+  const userId = auth.state.user?.id
+  if (!userId) return
+  try {
+    const res = await getAdminPermissions(userId)
+    if (res.code === 200) {
+      userPermissions.value = res.data || []
+    }
+  } catch (e) {
+    console.error('获取权限失败:', e)
+  }
+}
+
+const years = ref([])
+const selectedYear = ref(null)
 
 const statistics = ref({
   totalGraduates: 0,
@@ -104,32 +156,115 @@ const statistics = ref({
 
 const companyTypeData = ref([])
 const majorRateData = ref([])
-const employmentDistributionData = ref([])
 const trendData = ref({
   years: [],
   employmentRates: [],
   enrollmentRates: []
 })
 
-const employmentChart = ref(null)
 const majorChart = ref(null)
 const trendChart = ref(null)
 
+// 弹窗相关
+const detailDialogVisible = ref(false)
+const detailDialogTitle = ref('')
+const detailLoading = ref(false)
+const studentDetailList = ref([])
+
+// 格式化薪资（保留3位小数）
+const formatSalary = (salary) => {
+  if (!salary && salary !== 0) return '0.000'
+  return Number(salary).toFixed(3)
+}
+
+// 获取就业状态对应的标签颜色
+const getStatusTagType = (status) => {
+  const map = {
+    '已就业': 'success',
+    '升学': 'primary',
+    '待就业': 'warning',
+    '自主创业': 'info',
+    '未就业': 'danger'
+  }
+  return map[status] || ''
+}
+
+// 加载学生详情
+const loadStudentDetail = async (params) => {
+  detailLoading.value = true
+  detailDialogVisible.value = true
+  try {
+    const res = await getStatisticsStudents(params)
+    if (res.code === 200) {
+      studentDetailList.value = res.data || []
+    }
+  } catch (error) {
+    console.error('获取学生详情失败:', error)
+    studentDetailList.value = []
+    ElMessage.error('获取学生详情失败')
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+// 点击柱状图的某个柱子
+const handleBarClick = (params) => {
+  // 检查是否有学生管理权限
+  if (!hasPermission('student')) {
+    ElMessage.warning('您没有查看学生详情的权限，请联系管理员分配权限')
+    return
+  }
+  if (params.name) {
+    detailDialogTitle.value = `${params.name}专业学生详情（${selectedYear.value}届）`
+    loadStudentDetail({
+      year: selectedYear.value,
+      major: params.name
+    })
+  }
+}
+
+// 点击单位类型表格行
+const handleCompanyTypeClick = (row) => {
+  // 检查是否有学生管理权限
+  if (!hasPermission('student')) {
+    ElMessage.warning('您没有查看学生详情的权限，请联系管理员分配权限')
+    return
+  }
+  if (row.type) {
+    detailDialogTitle.value = `${row.type}学生详情（${selectedYear.value}届）`
+    loadStudentDetail({
+      year: selectedYear.value,
+      companyType: row.type
+    })
+  }
+}
+
+const handleYearChange = async () => {
+  // 只重新加载数据，不重新获取年份列表
+  await loadDataByYear()
+}
+
 const fetchYears = async () => {
   try {
-    const res = await getStatisticsOverview()
-    if (res.code === 200) {
-      years.value = res.data.map(item => item.year)
-      if (years.value.length > 0 && !years.value.includes(selectedYear.value)) {
-        selectedYear.value = years.value[0]
+    const res = await getStudentYears()
+    if (res.code === 200 && res.data) {
+      // 按降序排列，最新年份在前
+      years.value = res.data.sort((a, b) => b - a)
+      if (years.value.length > 0) {
+        selectedYear.value = years.value[0] // 默认选中最新年份
       }
     }
   } catch (error) {
     console.error('获取年份数据失败', error)
+    // 如果API失败，使用当前年份
+    const currentYear = new Date().getFullYear()
+    years.value = [currentYear]
+    selectedYear.value = currentYear
   }
 }
 
 const fetchStatistics = async () => {
+  if (!selectedYear.value) return
   try {
     const res = await getStatisticsByYear(selectedYear.value)
     if (res.code === 200) {
@@ -142,60 +277,38 @@ const fetchStatistics = async () => {
     }
   } catch (error) {
     console.error('获取统计数据失败', error)
+    statistics.value = {
+      totalGraduates: 0,
+      employmentRate: 0,
+      enrollmentRate: 0,
+      averageSalary: 0
+    }
   }
 }
 
 const fetchCompanyTypes = async () => {
+  if (!selectedYear.value) return
   try {
-    const res = await getCompanyTypes()
+    const res = await getCompanyTypes(selectedYear.value)
     if (res.code === 200) {
       companyTypeData.value = res.data
     }
   } catch (error) {
     console.error('获取单位类型数据失败', error)
-    companyTypeData.value = [
-      { type: '互联网企业', count: 450, percentage: 37.5, trend: 5.2 },
-      { type: '国有企业', count: 280, percentage: 23.3, trend: 3.1 },
-      { type: '事业单位', count: 180, percentage: 15.0, trend: -2.3 },
-      { type: '外资企业', count: 150, percentage: 12.5, trend: 1.8 },
-      { type: '自主创业', count: 80, percentage: 6.7, trend: 8.5 },
-      { type: '其他', count: 60, percentage: 5.0, trend: 0.5 }
-    ]
+    companyTypeData.value = []
   }
 }
 
 const fetchMajorRates = async () => {
+  if (!selectedYear.value) return
   try {
-    const res = await getMajorRates()
+    const res = await getMajorRates(selectedYear.value)
     if (res.code === 200) {
       majorRateData.value = res.data
     }
   } catch (error) {
     console.error('获取专业就业率数据失败', error)
-    majorRateData.value = [
-      { major: '软件工程', employmentRate: 97.2 },
-      { major: '计算机科学', employmentRate: 95.8 },
-      { major: '信息管理', employmentRate: 93.5 },
-      { major: '人工智能', employmentRate: 98.1 },
-      { major: '网络工程', employmentRate: 94.3 }
-    ]
-  }
-}
-
-const fetchEmploymentDistribution = async () => {
-  try {
-    const res = await getEmploymentDistribution(selectedYear.value)
-    if (res.code === 200) {
-      employmentDistributionData.value = res.data
-    }
-  } catch (error) {
-    console.error('获取就业分布数据失败', error)
-    employmentDistributionData.value = [
-      { value: 540, name: '已就业' },
-      { value: 420, name: '升学' },
-      { value: 150, name: '待就业' },
-      { value: 90, name: '自主创业' }
-    ]
+    majorRateData.value = []
   }
 }
 
@@ -212,50 +325,83 @@ const fetchTrend = async () => {
   } catch (error) {
     console.error('获取趋势数据失败', error)
     trendData.value = {
-      years: ['2020届', '2021届', '2022届', '2023届', '2024届'],
-      employmentRates: [90.2, 92.1, 93.8, 94.2, 95.5],
-      enrollmentRates: [25.3, 28.3, 30.5, 32.8, 35.2]
+      years: [],
+      employmentRates: [],
+      enrollmentRates: []
     }
   }
 }
 
 const initCharts = () => {
-  if (employmentChart.value) {
-    const chart = echarts.init(employmentChart.value)
-    chart.setOption({
-      tooltip: { trigger: 'item' },
-      legend: { orient: 'vertical', left: 'left' },
-      series: [{
-        name: '就业去向',
-        type: 'pie',
-        radius: ['40%', '70%'],
-        avoidLabelOverlap: false,
-        itemStyle: { borderRadius: 10 },
-        data: employmentDistributionData.value,
-        color: ['#667eea', '#764ba2', '#f093fb', '#f5576c']
-      }]
-    })
-  }
-  
+  // 销毁旧实例并重新创建
   if (majorChart.value) {
+    const oldChart = echarts.getInstanceByDom(majorChart.value)
+    if (oldChart) oldChart.dispose()
     const chart = echarts.init(majorChart.value)
+    const majors = majorRateData.value.map(item => item.major)
+    const majorCount = majors.length
+    // 根据专业数量动态调整参数
+    const barWidth = majorCount > 15 ? '35%' : majorCount > 10 ? '40%' : '50%'
+    const labelFontSize = majorCount > 15 ? 11 : 12
+    const rotate = majorCount > 15 ? 30 : majorCount > 8 ? 20 : 0
+    const bottomMargin = majorCount > 15 ? '18%' : majorCount > 8 ? '15%' : '10%'
+    
     chart.setOption({
-      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-      xAxis: { type: 'category', data: majorRateData.value.map(item => item.major) },
-      yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: '{b}: {c}%' },
+      grid: { left: '5%', right: '5%', bottom: bottomMargin, top: '10%', containLabel: true },
+      xAxis: { 
+        type: 'category', 
+        data: majors,
+        axisLabel: { 
+          interval: 0,
+          rotate: rotate,
+          fontSize: labelFontSize,
+          color: '#374151',
+          fontWeight: '500',
+          margin: 12
+        },
+        axisLine: { lineStyle: { color: '#e5e7eb' } },
+        axisTick: { show: false }
+      },
+      yAxis: { 
+        type: 'value', 
+        max: 100, 
+        axisLabel: { formatter: '{value}%', color: '#6b7280', fontSize: 12 },
+        axisLine: { lineStyle: { color: '#e5e7eb' } },
+        splitLine: { lineStyle: { color: '#f3f4f6', type: 'dashed' } }
+      },
       series: [{
         name: '就业率',
         type: 'bar',
         data: majorRateData.value.map(item => item.employmentRate),
-        barWidth: '50%',
-        itemStyle: { borderRadius: [4, 4, 0, 0] },
-        color: '#667eea'
+        barWidth: barWidth,
+        itemStyle: { 
+          borderRadius: [6, 6, 0, 0],
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: '#48CAE4' },
+            { offset: 1, color: '#0096C7' }
+          ])
+        },
+        emphasis: {
+          itemStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: '#7DD3E8' },
+              { offset: 1, color: '#0077B6' }
+            ])
+          }
+        },
+        label: {
+          show: false
+        }
       }]
     })
+    // 绑定点击事件
+    chart.on('click', handleBarClick)
   }
   
   if (trendChart.value) {
+    const oldChart = echarts.getInstanceByDom(trendChart.value)
+    if (oldChart) oldChart.dispose()
     const chart = echarts.init(trendChart.value)
     chart.setOption({
       tooltip: { trigger: 'axis' },
@@ -269,33 +415,26 @@ const initCharts = () => {
           type: 'line',
           data: trendData.value.employmentRates,
           smooth: true,
-          color: '#667eea'
+          color: '#48CAE4'
         },
         {
           name: '升学率',
           type: 'line',
           data: trendData.value.enrollmentRates,
           smooth: true,
-          color: '#764ba2'
+          color: '#0096C7'
         }
       ]
     })
   }
 }
 
-const updateCharts = () => {
-  nextTick(() => {
-    initCharts()
-  })
-}
-
-const fetchAllData = async () => {
+// 根据当前选中年份加载数据（不重新获取年份列表）
+const loadDataByYear = async () => {
   await Promise.all([
-    fetchYears(),
     fetchStatistics(),
     fetchCompanyTypes(),
     fetchMajorRates(),
-    fetchEmploymentDistribution(),
     fetchTrend()
   ])
   nextTick(() => {
@@ -303,16 +442,17 @@ const fetchAllData = async () => {
   })
 }
 
-watch(selectedYear, async () => {
-  await Promise.all([
-    fetchStatistics(),
-    fetchEmploymentDistribution()
-  ])
-  updateCharts()
-})
+// 初始化：先获取年份列表，再加载数据
+const initPage = async () => {
+  await fetchYears() // 获取年份列表并设置默认选中
+  if (selectedYear.value) {
+    await loadDataByYear() // 根据选中的年份加载数据
+  }
+}
 
 onMounted(() => {
-  fetchAllData()
+  initPage()
+  fetchUserPermissions()
 })
 </script>
 
@@ -380,14 +520,26 @@ onMounted(() => {
 
 .chart-container {
   height: 300px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.chart-container:hover {
+  opacity: 0.9;
+}
+
+.chart-container-major {
+  height: 500px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.chart-container-major:hover {
+  opacity: 0.9;
 }
 
 .chart-container-full {
   height: 350px;
-}
-
-.stats-detail {
-  margin-top: 20px;
 }
 
 .trend-up {
@@ -396,5 +548,32 @@ onMounted(() => {
 
 .trend-down {
   color: #f56c6c;
+}
+
+.chart-tip {
+  font-size: 12px;
+  color: #999;
+  font-weight: normal;
+  margin-left: 8px;
+}
+
+.detail-summary {
+  margin-bottom: 16px;
+  padding: 10px 16px;
+  background: #f0f9ff;
+  border-radius: 6px;
+  border-left: 3px solid #48CAE4;
+}
+
+.detail-summary strong {
+  color: #48CAE4;
+  font-size: 16px;
+}
+
+.chart-card :deep(.el-card__header),
+.chart-card-full :deep(.el-card__header) {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
 }
 </style>

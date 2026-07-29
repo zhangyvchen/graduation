@@ -146,6 +146,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import { getRecentLogs } from '../api/operationLog'
 import { getAllBatch } from '../api/batch'
@@ -158,8 +159,8 @@ import { useAuth } from '../stores/auth'
 const router = useRouter()
 const auth = useAuth()
 const loading = ref(false)
-const years = ref([2024])
-const selectedYear = ref(2024)
+const years = ref([])
+const selectedYear = ref(null)
 
 const stats = ref({
   totalBatches: 0,
@@ -245,6 +246,11 @@ const getStatusType = (status) => {
 }
 
 const showStudentList = (title, filterFn) => {
+  // 检查是否有学生管理权限
+  if (!hasPermission('student')) {
+    ElMessage.warning('您没有查看学生名单的权限，请联系管理员分配权限')
+    return
+  }
   modalTitle.value = title
   modalLoading.value = true
   selectedStudents.value = allStudents.value.filter(filterFn)
@@ -259,26 +265,32 @@ const closeModal = () => {
 
 const fetchStats = async () => {
   try {
-    const [batchRes, studentRes, templateRes, messageRes] = await Promise.all([
+    const requests = [
       getAllBatch(),
-      getAllStudents(selectedYear.value),
       getTemplateList({ all: true }),
       getPendingMessageCount().catch(() => ({ data: 0 }))
-    ])
+    ]
     
-    if (batchRes.code === 200) {
-      stats.value.totalBatches = batchRes.data.length
+    if (selectedYear.value) {
+      requests.push(getAllStudents(selectedYear.value))
     }
     
-    if (studentRes.code === 200) {
-      stats.value.totalStudents = studentRes.data.total || 0
+    const results = await Promise.all(requests)
+    const [batchRes, templateRes, messageRes, studentRes] = results
+    
+    if (batchRes && batchRes.code === 200) {
+      stats.value.totalBatches = batchRes.data?.length || 0
     }
     
-    if (templateRes.code === 200) {
-      stats.value.totalTemplates = templateRes.data.length
+    if (studentRes && studentRes.code === 200) {
+      stats.value.totalStudents = studentRes.data?.total || 0
     }
     
-    if (messageRes.code === 200) {
+    if (templateRes && templateRes.code === 200) {
+      stats.value.totalTemplates = templateRes.data?.length || 0
+    }
+    
+    if (messageRes && messageRes.code === 200) {
       stats.value.pendingMessages = messageRes.data || 0
     }
   } catch (error) {
@@ -293,26 +305,12 @@ const fetchProvinceStats = async () => {
       const provinces = res.data.provinces || []
       const counts = res.data.counts || []
       provinceData.value = provinces.map((p, i) => ({ name: p, value: counts[i] }))
+    } else {
+      provinceData.value = []
     }
   } catch (error) {
     console.error('获取省份统计失败:', error)
-    provinceData.value = [
-      { name: '广东省', value: 280 },
-      { name: '北京市', value: 195 },
-      { name: '上海市', value: 178 },
-      { name: '浙江省', value: 156 },
-      { name: '江苏省', value: 142 },
-      { name: '四川省', value: 98 },
-      { name: '湖北省', value: 85 },
-      { name: '湖南省', value: 76 },
-      { name: '福建省', value: 68 },
-      { name: '山东省', value: 55 },
-      { name: '河南省', value: 48 },
-      { name: '安徽省', value: 42 },
-      { name: '河北省', value: 38 },
-      { name: '广西壮族自治区', value: 35 },
-      { name: '重庆市', value: 32 }
-    ]
+    provinceData.value = []
   }
 }
 
@@ -329,15 +327,14 @@ const fetchStatusStats = async () => {
         statusMap[statusLabel] = (statusMap[statusLabel] || 0) + 1
       })
       statusData.value = Object.entries(statusMap).map(([name, value]) => ({ name, value }))
+    } else {
+      statusData.value = []
+      allStudents.value = []
     }
   } catch (error) {
     console.error('获取就业状态失败:', error)
-    statusData.value = [
-      { name: '已就业', value: 850 },
-      { name: '升学', value: 320 },
-      { name: '待就业', value: 120 },
-      { name: '自主创业', value: 60 }
-    ]
+    statusData.value = []
+    allStudents.value = []
   }
 }
 
@@ -359,14 +356,7 @@ const fetchSalaryStats = async () => {
       .filter(item => item.value > 0)
   } catch (error) {
     console.error('获取薪资分布失败:', error)
-    salaryData.value = [
-      { name: '3k以下', value: 60 },
-      { name: '3-5k', value: 180 },
-      { name: '5-8k', value: 320 },
-      { name: '8-10k', value: 280 },
-      { name: '10-15k', value: 220 },
-      { name: '15k以上', value: 90 }
-    ]
+    salaryData.value = []
   }
 }
 
@@ -528,22 +518,12 @@ const initCharts = () => {
 }
 
 const handleYearChange = async () => {
-  await fetchAllData()
+  // 只重新加载数据，不重新获取年份列表
+  await loadDataByYear()
 }
 
-const fetchAllData = async () => {
-  try {
-    const yearRes = await getStudentYears()
-    if (yearRes.code === 200 && yearRes.data) {
-      years.value = yearRes.data
-      if (years.value.length > 0) {
-        selectedYear.value = years.value[0]
-      }
-    }
-  } catch (error) {
-    console.error('获取年份列表失败:', error)
-  }
-  
+const loadDataByYear = async () => {
+  // 使用当前选中的年份加载数据
   await Promise.all([
     fetchStats(),
     fetchProvinceStats(),
@@ -554,6 +534,37 @@ const fetchAllData = async () => {
   nextTick(() => {
     initCharts()
   })
+}
+
+const initPage = async () => {
+  // 初始化时先获取年份列表
+  try {
+    const yearRes = await getStudentYears()
+    if (yearRes.code === 200 && yearRes.data) {
+      // 按降序排列，最新的年份在前
+      years.value = yearRes.data.sort((a, b) => b - a)
+      if (years.value.length > 0) {
+        selectedYear.value = years.value[0] // 默认选中最新的年份
+      }
+    }
+  } catch (error) {
+    console.error('获取年份列表失败:', error)
+  }
+  
+  // 如果没有年份数据，使用当前年份
+  if (!selectedYear.value) {
+    selectedYear.value = new Date().getFullYear()
+    if (!years.value.includes(selectedYear.value)) {
+      years.value = [selectedYear.value]
+    }
+  }
+  
+  // 根据选中的年份加载数据
+  await loadDataByYear()
+}
+
+const fetchAllData = async () => {
+  await initPage()
 }
 
 const fetchUserPermissions = async () => {
