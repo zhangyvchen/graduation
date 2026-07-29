@@ -7,6 +7,7 @@ import App from './App.vue'
 import router from './router/index.js'
 import './styles/admin-theme.css'
 import './styles/ai-chat-theme.css'
+import './styles/theme.css'
 
 const app = createApp(App)
 app.use(ElementPlus, { locale: zhCn })

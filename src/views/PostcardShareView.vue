@@ -1,14 +1,14 @@
 <template>
   <div class="postcard-share-page">
     <div class="share-header">
-      <span class="logo">🎓</span>
+      <el-icon class="header-icon"><CollectionTag /></el-icon>
       <span class="title">毕业纪念 · 分享明信片</span>
     </div>
 
     <div class="share-content" v-if="payload">
       <div class="share-card" :style="{ background: templates[payload.t ?? 0]?.bg || templates[0].bg }">
         <div class="card-overlay">
-          <div class="card-badge">🎓 毕业快乐</div>
+          <div class="card-badge">毕业快乐</div>
           <div class="card-avatar">
             <img :src="`https://api.dicebear.com/7.x/avataaars/svg?seed=${payload.n || 'anonymous'}&backgroundColor=b6e3f4`" alt="avatar" />
           </div>
@@ -39,18 +39,24 @@
       </div>
 
       <div class="share-actions">
-        <el-button type="primary" @click="downloadCard">📥 保存明信片</el-button>
-        <el-button @click="goHome">🏠 我也生成一张</el-button>
+        <el-button type="primary" @click="downloadCard">
+          <el-icon><Download /></el-icon>
+          <span>保存明信片</span>
+        </el-button>
+        <el-button @click="goHome">
+          <el-icon><HomeFilled /></el-icon>
+          <span>我也生成一张</span>
+        </el-button>
       </div>
 
       <div class="share-footer">
-        <p>💌 来自同学的毕业纪念</p>
+        <p>来自同学的毕业纪念</p>
         <p class="tip">愿你们前程似锦，未来可期</p>
       </div>
     </div>
 
     <div v-else class="share-error">
-      <div class="error-icon">😢</div>
+      <el-icon class="error-icon"><Warning /></el-icon>
       <p>明信片链接无效或已损坏</p>
       <el-button type="primary" @click="goHome">返回首页</el-button>
     </div>
@@ -68,11 +74,11 @@ const payload = ref(null)
 const cardRef = ref(null)
 
 const templates = [
-  { name: '极光紫', bg: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
-  { name: '落日橙', bg: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
-  { name: '海洋蓝', bg: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
-  { name: '森林绿', bg: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
-  { name: '星空夜', bg: 'linear-gradient(135deg, #0c0c1d 0%, #1a1a3e 100%)' }
+  { name: '午夜靛蓝', bg: 'linear-gradient(135deg, #1e293b 0%, #312e81 100%)' },
+  { name: '琥珀金辉', bg: 'linear-gradient(135deg, #92400e 0%, #d97706 100%)' },
+  { name: '深海碧蓝', bg: 'linear-gradient(135deg, #0c4a6e 0%, #0284c7 100%)' },
+  { name: '森林翠影', bg: 'linear-gradient(135deg, #064e3b 0%, #0d9488 100%)' },
+  { name: '玫瑰余晖', bg: 'linear-gradient(135deg, #881337 0%, #e11d48 100%)' }
 ]
 
 const parsePayload = () => {
@@ -130,8 +136,38 @@ const goHome = () => {
 <style scoped>
 .postcard-share-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background:
+    radial-gradient(circle at 12% 18%, rgba(217, 119, 6, 0.08) 0%, transparent 28%),
+    radial-gradient(circle at 88% 82%, rgba(79, 70, 229, 0.06) 0%, transparent 28%),
+    linear-gradient(180deg, var(--bg) 0%, #f1f5f9 100%);
   padding: 24px 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.postcard-share-page::before,
+.postcard-share-page::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+}
+
+.postcard-share-page::before {
+  width: 280px;
+  height: 280px;
+  background: rgba(217, 119, 6, 0.08);
+  top: -80px;
+  right: -60px;
+}
+
+.postcard-share-page::after {
+  width: 240px;
+  height: 240px;
+  background: rgba(79, 70, 229, 0.06);
+  bottom: -60px;
+  left: -40px;
 }
 
 .share-header {
@@ -139,19 +175,24 @@ const goHome = () => {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  padding: 16px 0;
+  padding: 16px 0 24px;
   font-size: 20px;
-  font-weight: bold;
-  color: #2c3e50;
+  font-weight: 700;
+  color: var(--primary);
+  position: relative;
+  z-index: 1;
 }
 
-.share-header .logo {
-  font-size: 28px;
+.share-header .header-icon {
+  font-size: 26px;
+  color: var(--accent);
 }
 
 .share-content {
-  max-width: 480px;
+  max-width: 460px;
   margin: 0 auto;
+  position: relative;
+  z-index: 1;
 }
 
 .share-card {
@@ -162,16 +203,24 @@ const goHome = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 16px 60px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.18);
   position: relative;
   overflow: hidden;
+}
+
+.share-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.12) 0%, transparent 50%);
+  pointer-events: none;
 }
 
 .card-overlay {
   width: 100%;
   height: 100%;
   background: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(10px);
   border-radius: 20px;
   padding: 32px 24px;
   display: flex;
@@ -179,31 +228,34 @@ const goHome = () => {
   align-items: center;
   justify-content: center;
   text-align: center;
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--text-inverse);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  position: relative;
 }
 
 .card-badge {
   position: absolute;
-  top: 32px;
-  right: 32px;
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(4px);
-  padding: 6px 18px;
-  border-radius: 24px;
-  font-size: 14px;
+  top: 28px;
+  right: 28px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+  color: var(--text-inverse);
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.35);
 }
 
 .card-avatar {
-  width: 100px;
-  height: 100px;
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.4);
+  border: 3px solid rgba(255, 255, 255, 0.45);
   overflow: hidden;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 .card-avatar img {
@@ -213,72 +265,81 @@ const goHome = () => {
 }
 
 .card-name {
-  font-size: 32px;
+  font-size: 30px;
   font-weight: 700;
   margin-bottom: 6px;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  letter-spacing: -0.01em;
 }
 
 .card-college {
-  font-size: 16px;
-  opacity: 0.85;
-  margin-bottom: 4px;
+  font-size: 15px;
+  opacity: 0.88;
+  margin-bottom: 3px;
+  font-weight: 500;
 }
 
 .card-year {
-  font-size: 15px;
+  font-size: 13px;
   opacity: 0.7;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
+  letter-spacing: 0.5px;
 }
 
 .card-stats {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
-  margin-bottom: 20px;
-  padding: 12px 20px;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 12px;
+  margin-bottom: 22px;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
   backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .card-stat-item {
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-width: 56px;
 }
 
 .card-stat-value {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   margin-bottom: 2px;
+  line-height: 1.2;
 }
 
 .card-stat-label {
-  font-size: 11px;
-  opacity: 0.7;
-  letter-spacing: 0.5px;
+  font-size: 10px;
+  opacity: 0.75;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
 }
 
 .card-stat-divider {
   width: 1px;
-  height: 32px;
+  height: 28px;
   background: rgba(255, 255, 255, 0.25);
 }
 
 .card-motto {
-  font-size: 20px;
+  font-size: 18px;
   font-style: italic;
   opacity: 0.95;
   margin-bottom: 8px;
   padding: 0 8px;
   font-family: 'Georgia', serif;
-  line-height: 1.5;
+  line-height: 1.55;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
 .card-sign {
-  font-size: 14px;
-  opacity: 0.7;
+  font-size: 13px;
+  opacity: 0.72;
+  letter-spacing: 0.3px;
 }
 
 .share-actions {
@@ -288,11 +349,20 @@ const goHome = () => {
   margin-top: 24px;
 }
 
+.share-actions .el-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
 .share-footer {
   text-align: center;
-  margin-top: 32px;
-  color: #606266;
+  margin-top: 28px;
+  color: var(--text-2);
   font-size: 14px;
+  line-height: 1.6;
 }
 
 .share-footer p {
@@ -300,7 +370,7 @@ const goHome = () => {
 }
 
 .share-footer .tip {
-  color: #909399;
+  color: var(--text-3);
   font-size: 13px;
 }
 
@@ -308,11 +378,39 @@ const goHome = () => {
   max-width: 360px;
   margin: 80px auto;
   text-align: center;
-  color: #606266;
+  color: var(--text-2);
+  position: relative;
+  z-index: 1;
 }
 
-.error-icon {
-  font-size: 64px;
-  margin-bottom: 16px;
+.share-error .error-icon {
+  font-size: 56px;
+  color: var(--text-3);
+  margin-bottom: 14px;
+}
+
+.share-error p {
+  margin-bottom: 18px;
+}
+
+@media (max-width: 480px) {
+  .share-card {
+    padding: 20px;
+  }
+  .card-overlay {
+    padding: 24px 18px;
+  }
+  .card-name {
+    font-size: 26px;
+  }
+  .share-actions {
+    flex-direction: column;
+  }
+  .share-actions .el-button {
+    width: 100%;
+    justify-content: center;
+  }
 }
 </style>
+
+<!-- redesigned 2026-07-28 -->

@@ -63,6 +63,33 @@ function getIdentityMemoryKey(identity) {
   return `guest:${identity.userId ?? 'anonymous'}`
 }
 
+/**
+ * 校验某个身份在浏览器中是否仍持有有效鉴权信息
+ * 用于退出登录时阻止 useAiChat 的 watch 触发无效的清理 API
+ */
+function isIdentityAuthStillValid(identity) {
+  if (!identity) return false
+  if (identity.userRole === 'guest') return false
+  // 1) 优先看 auth store 的统一存储（graduation_auth）
+  let authData = null
+  try {
+    authData = localStorage.getItem('graduation_auth')
+      || sessionStorage.getItem('graduation_auth')
+  } catch (e) {
+    authData = null
+  }
+  if (authData) {
+    try {
+      const parsed = JSON.parse(authData)
+      if (parsed && parsed.user && parsed.user.token) return true
+    } catch (e) {}
+  }
+  // 2) 兜底：旧 localStorage 中的 token 字段
+  if (identity.userRole === 'student' && localStorage.getItem('student_token')) return true
+  if (identity.userRole === 'admin' && localStorage.getItem('token')) return true
+  return false
+}
+
 function sessionStorageKey(identity) {
   return `aiCurrentSession:${getIdentityMemoryKey(identity)}`
 }
@@ -385,6 +412,16 @@ export function useAiChat(options = {}) {
       } else {
         resetLocalMessages(welcomeMessage)
       }
+      return
+    }
+
+    // ★ 关键修复：退出登录场景（auth state 与 token 都已清空）下，
+    //   不再调用清理记忆 API。否则会因 token 缺失触发 401，
+    //   并被 request.js 拦截器跳转到 /login 登录页（用户期望跳首页 /）。
+    const prevStillAuthed = isIdentityAuthStillValid(prevIdentity)
+    if (!prevStillAuthed) {
+      persistSessionKey('')
+      resetLocalMessages(welcomeMessage)
       return
     }
 
