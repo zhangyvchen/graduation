@@ -30,7 +30,7 @@
       </el-dialog>
     </div>
 
-    <div v-else-if="isAdmin" class="admin-report">
+    <div v-else-if="canAccessReport" class="admin-report">
       <div class="report-form">
         <el-card>
           <template #header>
@@ -57,6 +57,17 @@
       </div>
     </div>
 
+    <div v-else-if="isAssistant && !hasStudentPermission" class="no-permission">
+      <el-result
+        icon="warning"
+        title="无权限访问"
+        sub-title="您没有「名单管理」权限，无法查看学生报告">
+        <template #extra>
+          <el-button type="primary" @click="goBack">返回首页</el-button>
+        </template>
+      </el-result>
+    </div>
+
     <div v-else class="redirecting">
       <p>正在打开个人报告…</p>
     </div>
@@ -68,6 +79,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../stores/auth'
 import { checkStudentExists } from '../api/student'
+import { getAdminPermissions } from '../api/admin'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
@@ -76,6 +88,38 @@ const auth = useAuth()
 const isLoggedIn = computed(() => auth.state.isLoggedIn)
 const isStudent = computed(() => auth.state.role?.toUpperCase() === 'STUDENT')
 const isAdmin = computed(() => auth.state.role?.toUpperCase() === 'ADMIN')
+const isAssistant = computed(() => auth.state.role?.toUpperCase() === 'ASSISTANT')
+
+const userPermissions = ref([])
+
+const loadUserPermissions = async () => {
+  const userId = auth.state.user?.id
+  if (!userId) return
+  if (isAdmin.value) {
+    userPermissions.value = []
+    return
+  }
+  try {
+    const res = await getAdminPermissions(userId)
+    if (res.code === 200) {
+      userPermissions.value = res.data || []
+      sessionStorage.setItem('admin_permissions', JSON.stringify(userPermissions.value))
+    }
+  } catch (e) {
+    console.error('[ReportDownload] 获取权限失败:', e)
+  }
+}
+
+const hasStudentPermission = computed(() => {
+  if (isAdmin.value) return true
+  return userPermissions.value.some(p => p.module === 'student')
+})
+
+const canAccessReport = computed(() => {
+  if (isAdmin.value) return true
+  if (isAssistant.value && hasStudentPermission.value) return true
+  return false
+})
 
 const showLoginDialog = ref(true)
 const loading = ref(false)
@@ -125,8 +169,11 @@ const generateReport = async () => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   redirectStudentToReport()
+  if (isLoggedIn.value && (isAdmin.value || isAssistant.value)) {
+    await loadUserPermissions()
+  }
 })
 
 watch(isStudent, (val) => {
@@ -179,6 +226,11 @@ watch(isStudent, (val) => {
 .admin-report {
   max-width: 640px;
   margin: 40px auto;
+}
+
+.no-permission {
+  max-width: 500px;
+  margin: 80px auto;
 }
 
 .redirecting {

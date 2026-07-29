@@ -86,8 +86,30 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { getBatchList, saveBatch, updateBatch, deleteBatch, toggleBatchStatus, recalculateBatch } from '../api/batch'
+import { getAdminPermissions } from '../api/admin'
+import { useAuth } from '../stores/auth'
 
 const router = useRouter()
+const auth = useAuth()
+const userPermissions = ref([])
+
+const hasPermission = (module) => {
+  if (auth.state.role?.toUpperCase() === 'ADMIN') return true
+  return userPermissions.value.some(p => p.module === module)
+}
+
+const fetchUserPermissions = async () => {
+  const userId = auth.state.user?.id
+  if (!userId) return
+  try {
+    const res = await getAdminPermissions(userId)
+    if (res.code === 200) {
+      userPermissions.value = res.data || []
+    }
+  } catch (e) {
+    console.error('获取权限失败:', e)
+  }
+}
 
 const batchList = ref([])
 const searchKeyword = ref('')
@@ -139,6 +161,11 @@ const handleCurrentChange = (val) => {
 }
 
 const handleViewReport = (row) => {
+  // 检查是否有数据统计权限
+  if (!hasPermission('statistics')) {
+    ElMessage.warning('您没有查看数据统计的权限，请联系管理员分配权限')
+    return
+  }
   router.push('/admin/statistics')
 }
 
@@ -231,6 +258,7 @@ const handleSubmit = async () => {
 
 onMounted(() => {
   fetchData()
+  fetchUserPermissions()
 })
 </script>
 

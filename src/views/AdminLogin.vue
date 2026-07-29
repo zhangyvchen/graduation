@@ -104,10 +104,10 @@ const handleLogin = async () => {
         } else {
           router.push('/')
         }
-      } else if (returnPath && returnPath !== '/login' && returnPath !== '/admin/login') {
+      } else if (returnPath && returnPath !== '/login' && returnPath !== '/admin/login' && returnPath.startsWith('/admin')) {
         router.push(returnPath)
       } else {
-        router.push('/')
+        router.push('/admin/dashboard')
       }
     } else {
       ElMessage.error(response.message || '登录失败')

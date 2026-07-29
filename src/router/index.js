@@ -151,15 +151,38 @@ const router = createRouter({
   routes
 })
 
+// 管理员路由权限映射 - 定义每个路由需要的权限模块
+const adminRoutePermissions = {
+  '/admin/dashboard': 'dashboard',
+  '/admin/batch': 'batch',
+  '/admin/student': 'student',
+  '/admin/search': 'student',  // 全局搜索需要学生管理权限
+  '/admin/statistics': 'statistics',
+  '/admin/template': 'template',
+  '/admin/verify': 'verify',
+  '/admin/import': 'import',
+  '/admin/message': 'message',
+  '/admin/permission': 'permission',
+  '/admin/ai': 'ai',
+  '/admin/ai-history': 'ai',
+  '/admin/ai-risk': 'ai',
+}
+
 router.beforeEach((to, from, next) => {
   const auth = useAuth()
   const currentRole = auth.state.role?.toUpperCase()
 
   // ★ 进入登录页时记录来源路径（不记录登录页之间的跳转）
-  // 登录成功后登录页会读 sessionStorage.login_return_path 跳回原页面
+  // 但如果来源是管理后台的受限页面，则不记录（登录后直接跳首页）
   if ((to.path === '/login' || to.path === '/admin/login')
       && from.path && from.path !== '/login' && from.path !== '/admin/login') {
-    sessionStorage.setItem('login_return_path', from.fullPath)
+    // 如果是管理员登录页，检查来源是否是需要特殊权限的页面
+    if (to.path === '/admin/login' && from.path.startsWith('/admin/')) {
+      // 只记录到dashboard，不记录受限页面
+      sessionStorage.setItem('login_return_path', '/admin/dashboard')
+    } else {
+      sessionStorage.setItem('login_return_path', from.fullPath)
+    }
   }
 
   if (to.path === '/admin/login' || to.path === '/login') {
@@ -198,6 +221,39 @@ router.beforeEach((to, from, next) => {
     if (to.meta.role && !['ADMIN', 'ASSISTANT'].includes(currentRole) && currentRole !== to.meta.role.toUpperCase()) {
       next('/')
       return
+    }
+  }
+
+  // ★ 已登录用户访问管理后台时的权限检查
+  if (auth.state.isLoggedIn && (currentRole === 'ADMIN' || currentRole === 'ASSISTANT')) {
+    if (to.path.startsWith('/admin/')) {
+      // 超级管理员可以访问所有页面
+      if (currentRole === 'ADMIN') {
+        next()
+        return
+      }
+      
+      // 协助管理员需要检查权限
+      const requiredPermission = adminRoutePermissions[to.path]
+      if (requiredPermission) {
+        // 从sessionStorage获取权限列表
+        const permissionsStr = sessionStorage.getItem('admin_permissions')
+        let permissions = []
+        if (permissionsStr) {
+          try {
+            permissions = JSON.parse(permissionsStr)
+          } catch (e) {
+            console.error('解析权限失败:', e)
+          }
+        }
+        
+        const hasPermission = permissions.some(p => p.module === requiredPermission)
+        if (!hasPermission) {
+          // 没有权限，跳转到首页
+          next('/admin/dashboard')
+          return
+        }
+      }
     }
   }
 
