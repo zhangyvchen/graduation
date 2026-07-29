@@ -1,6 +1,6 @@
 /**
  * 数据故事解说生成器
- * 根据数据自动生成自然语言描述
+ * 根据数据自动生成自然语言描述（现代学术风格，无 emoji）
  */
 
 // 数字美化
@@ -12,37 +12,37 @@ const formatNumber = (num) => {
 
 // 获取趋势描述
 const getTrend = (value, threshold = 50) => {
-    if (value >= 95) return '非常出色 🎉'
-    if (value >= 85) return '表现优秀 👍'
-    if (value >= 70) return '处于良好水平 📈'
-    if (value >= threshold) return '表现平稳 📊'
-    return '有待提升 💪'
+    if (value >= 95) return '非常出色'
+    if (value >= 85) return '表现优秀'
+    if (value >= 70) return '处于良好水平'
+    if (value >= threshold) return '表现平稳'
+    return '有待提升'
 }
 
 // 首页解说
 export const homeStory = (data) => {
     if (!data || !data.totalGraduates) {
-        return '📊 数据加载中，请稍后...'
+        return '数据加载中，请稍后...'
     }
     const total = formatNumber(data.totalGraduates)
     const emp = data.employmentRate || 0
     const enroll = data.enrollmentRate || 0
     const trend = getTrend(emp)
 
-    let text = `🎙️ 欢迎来到毕业数据报告系统！`
+    let text = `欢迎来到毕业数据报告系统。`
     text += `今年共有 **${total}** 名毕业生，就业率达到 **${emp}%**，${trend}。`
     text += `升学率为 **${enroll}%**，`
 
     if (enroll > 30) {
-        text += `深造热情高涨 🔥`
+        text += `深造热情较高`
     } else if (enroll > 20) {
-        text += `稳步提升 📈`
+        text += `呈稳步提升态势`
     } else {
-        text += `还有提升空间 💪`
+        text += `仍有提升空间`
     }
 
     if (data.year) {
-        text += ` 这是 **${data.year}届** 毕业生的数据全景图。`
+        text += `。这是 **${data.year}届** 毕业生的数据全景图。`
     }
 
     return text
@@ -51,18 +51,18 @@ export const homeStory = (data) => {
 // 成长轨迹解说
 export const growthStory = (data) => {
     if (!data || !data.honor) {
-        return '📊 数据加载中，请稍后...'
+        return '数据加载中，请稍后...'
     }
 
     const honor = data.honor || { national: 0, provincial: 0, school: 0, college: 0 }
     const totalHonor = honor.national + honor.provincial + honor.school + honor.college
 
-    let text = `🎙️ 成长轨迹展现了本届毕业生的全面发展情况。`
+    let text = `成长轨迹展现了本届毕业生的全面发展情况。`
 
     if (totalHonor > 0) {
         text += `共获得 **${totalHonor}** 项荣誉奖项，`
         if (honor.national > 0) {
-            text += `其中国家级奖项 **${honor.national}** 项，含金量十足 🏆`
+            text += `其中国家级奖项 **${honor.national}** 项，含金量突出`
         } else if (honor.provincial > 0) {
             text += `省级及以上奖项 **${honor.national + honor.provincial}** 项`
         } else {
@@ -73,15 +73,15 @@ export const growthStory = (data) => {
 
     // 奖学金
     const scholarship = data.scholarship || []
-    if (scholarship.length > 0) {
+    if (scholarship.length > 0 && 'rate' in scholarship[0]) {
         const avgRate = scholarship.reduce((s, d) => s + d.rate, 0) / scholarship.length
         text += `奖学金覆盖率达到 **${avgRate.toFixed(1)}%**，`
         if (avgRate > 40) {
-            text += `整体学业表现优秀 💰`
+            text += `整体学业表现优秀`
         } else if (avgRate > 30) {
-            text += `表现良好 📚`
+            text += `表现良好`
         } else {
-            text += `还有提升空间 💪`
+            text += `仍有提升空间`
         }
         text += `。`
     }
@@ -91,14 +91,14 @@ export const growthStory = (data) => {
     const totalCadre = cadre.president + cadre.minister + cadre.monitor + cadre.secretary
     if (totalCadre > 0) {
         text += `共有 **${totalCadre}** 名学生担任过学生干部，`
-        text += `展现了良好的领导力和服务意识 👔。`
+        text += `展现了良好的领导力与服务意识。`
     }
 
     const party = data.party || { partyMember: 0, probationary: 0, activist: 0, mass: 0 }
     const totalParty = party.partyMember + party.probationary + party.activist
     if (totalParty > 0) {
         const percent = (totalParty / (totalParty + party.mass) * 100).toFixed(1)
-        text += `党员及积极分子占比 **${percent}%**，政治素养优秀 🚩。`
+        text += `党员及积极分子占比 **${percent}%**，政治素养优良。`
     }
 
     return text
@@ -107,10 +107,10 @@ export const growthStory = (data) => {
 // 去向地图解说
 export const destinationStory = (data) => {
     if (!data || !data.heatmap) {
-        return '📊 数据加载中，请稍后...'
+        return '数据加载中，请稍后...'
     }
 
-    let text = `🎙️ 毕业生的足迹遍布全国各地！`
+    let text = `毕业生的足迹遍布全国各地。`
 
     // 热门省份
     const heatmap = data.heatmap || []
@@ -126,7 +126,7 @@ export const destinationStory = (data) => {
             }
             text += `。`
         }
-        text += ` 总体呈现 **${sorted.length > 10 ? '广泛分布' : '集中趋势'}** 的特点 🌍。`
+        text += ` 总体呈现 **${sorted.length > 10 ? '广泛分布' : '集中趋势'}** 的特点。`
     }
 
     // 行业分布
@@ -164,10 +164,10 @@ export const destinationStory = (data) => {
 // 学习画像解说
 export const learningStory = (data) => {
     if (!data || !data.gpa) {
-        return '📊 数据加载中，请稍后...'
+        return '数据加载中，请稍后...'
     }
 
-    let text = `🎙️ 学习画像展示了本届毕业生的学术风采！`
+    let text = `学习画像展示了本届毕业生的学术风采。`
 
     // GPA
     const gpaData = data.gpa || []
@@ -177,14 +177,14 @@ export const learningStory = (data) => {
             const range = d.range
             return range.includes('3.5') || range.includes('3.0')
         }).reduce((s, d) => s + d.count, 0)
-        const highPercent = (highGpa / total * 100).toFixed(1)
+        const highPercent = total > 0 ? (highGpa / total * 100).toFixed(1) : 0
         text += `GPA在 **3.0以上** 的学生占比 **${highPercent}%**，`
         if (highPercent > 60) {
-            text += `学术表现非常优秀 📚✨`
+            text += `学术表现非常优秀`
         } else if (highPercent > 40) {
-            text += `整体学风扎实 👍`
+            text += `整体学风扎实`
         } else {
-            text += `还有提升空间 💪`
+            text += `仍有提升空间`
         }
         text += `。`
     }
@@ -193,14 +193,13 @@ export const learningStory = (data) => {
     const library = data.library || []
     if (library.length > 0) {
         const avg = library.reduce((s, d) => s + d.count, 0) / library.length
-        const max = library.reduce((s, d) => Math.max(s, d.count), 0)
         text += `人均借阅 **${avg.toFixed(1)}** 本书，`
         if (avg > 50) {
-            text += `阅读量惊人，堪称"书虫" 📖🐛`
+            text += `阅读量突出`
         } else if (avg > 30) {
-            text += `阅读习惯良好 📖`
+            text += `阅读习惯良好`
         } else {
-            text += `图书馆欢迎你常来 📚`
+            text += `图书馆欢迎你常来`
         }
         text += `。`
     }
@@ -211,11 +210,11 @@ export const learningStory = (data) => {
         const avgRate = lab.reduce((s, d) => s + d.rate, 0) / lab.length
         text += `实验室参与率 **${avgRate.toFixed(1)}%**，`
         if (avgRate > 50) {
-            text += `科研热情高涨 🔬`
+            text += `科研热情高涨`
         } else if (avgRate > 30) {
-            text += `实践能力突出 🔬`
+            text += `实践能力突出`
         } else {
-            text += `期待更多同学走进实验室 💡`
+            text += `期待更多同学走进实验室`
         }
         text += `。`
     }
@@ -226,11 +225,11 @@ export const learningStory = (data) => {
     if (totalComp > 0) {
         text += `共获得 **${totalComp}** 项竞赛奖项，`
         if (competition.international > 0 || competition.national > 0) {
-            text += `其中国际/国家级奖项 **${competition.international + competition.national}** 项，实力非凡 🏅`
+            text += `其中国际/国家级奖项 **${competition.international + competition.national}** 项，实力突出`
         } else {
-            text += `获奖覆盖面广泛 🏅`
+            text += `获奖覆盖面广泛`
         }
-        text += `！`
+        text += `。`
     }
 
     return text

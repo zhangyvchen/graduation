@@ -89,6 +89,13 @@ export const getMyMessages = () => request({
   method: 'get'
 })
 
+// 公开已审核留言（毕业纪念页用）
+export const getPublicMessages = (limit = 50) => request({
+  url: '/student/message/public',
+  method: 'get',
+  params: { limit }
+})
+
 // 根据学号查询学生信息（复用个人总览接口，仅查询当前登录学生）
 export const getStudentByStudentId = (studentId) => request({
   url: '/student/profile/info',

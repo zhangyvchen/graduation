@@ -48,6 +48,7 @@ request.interceptors.request.use(config => {
     '/student/login',
     '/student/auth/login',
     '/student/auth/register',
+    '/student/message/public',
     '/admin/reset-password',
     '/verify/'
   ]
@@ -87,6 +88,22 @@ request.interceptors.response.use(
       if (isPublicPage) {
         console.warn('[request] 公共页接口 401，不跳转登录页:', error.config?.url)
         return Promise.reject(error)
+      }
+      // ★ 关键修复：用户已主动退出登录（auth store 与 token 均已清空）时，
+      //   飞在途中的 401 不应再跳到 /login（退出登录应跳首页 /）。
+      const authStillThere = !!(localStorage.getItem('graduation_auth')
+        || sessionStorage.getItem('graduation_auth'))
+      if (!authStillThere && !localStorage.getItem('student_token')
+          && !localStorage.getItem('token')) {
+        if (pathname.startsWith('/student')) {
+          // 学生身份已退出，飞在途中的接口 401 → 留在学生公共首页
+          if (pathname !== '/') window.location.href = '/'
+          return Promise.reject(error)
+        }
+        if (pathname.startsWith('/admin')) {
+          if (pathname !== '/') window.location.href = '/'
+          return Promise.reject(error)
+        }
       }
       if (localStorage.getItem('student_token')) {
         localStorage.removeItem('student_token')

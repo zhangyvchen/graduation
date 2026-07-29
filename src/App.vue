@@ -27,6 +27,8 @@ const isLoggedIn = computed(() => !!auth.state.isLoggedIn)
 }
 
 body {
-  font-family: 'Microsoft YaHei', sans-serif;
+  font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
 }
 </style>
