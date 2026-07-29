@@ -22,9 +22,9 @@
       </el-table-column>
       <el-table-column label="操作" width="240">
         <template #default="{ row }">
-          <el-button size="small" @click="editAdmin(row)">编辑</el-button>
+          <el-button size="small" @click="editAdmin(row)" :disabled="isAssistant && row.role === 'ADMIN'">编辑</el-button>
           <el-button size="small" type="primary" @click="assignAdminPermissions(row)" v-if="row.role !== 'ADMIN'">分配权限</el-button>
-          <el-button size="small" type="danger" @click="handleDeleteAdmin(row)" v-if="row.id !== currentAdminId">删除</el-button>
+          <el-button size="small" type="danger" @click="handleDeleteAdmin(row)" v-if="row.id !== currentAdminId && !(isAssistant && row.role === 'ADMIN')">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -41,8 +41,8 @@
           <el-input v-model="adminForm.name" placeholder="请输入姓名" />
         </el-form-item>
         <el-form-item label="角色">
-          <el-select v-model="adminForm.role" placeholder="请选择角色">
-            <el-option label="超级管理员" value="ADMIN" />
+          <el-select v-model="adminForm.role" placeholder="请选择角色" :disabled="isAssistant && adminForm.id">
+            <el-option label="超级管理员" value="ADMIN" v-if="!isAssistant" />
             <el-option label="协助管理员" value="ASSISTANT" />
           </el-select>
         </el-form-item>
@@ -106,6 +106,7 @@ const currentAdminName = ref('')
 const selectedAdminPermissionIds = ref([])
 
 const currentAdminIdGlobal = computed(() => auth.state.user?.id)
+const isAssistant = computed(() => auth.state.role?.toUpperCase() === 'ASSISTANT')
 
 const moduleNames = {
   'dashboard': '管理首页',
@@ -186,11 +187,19 @@ const handleSaveAdmin = async () => {
 }
 
 const editAdmin = (row) => {
+  if (isAssistant.value && row.role === 'ADMIN') {
+    ElMessage.warning('协助管理员无权修改超级管理员信息')
+    return
+  }
   adminForm.value = { ...row, password: '' }
   showAdminDialog.value = true
 }
 
 const handleDeleteAdmin = async (row) => {
+  if (isAssistant.value && row.role === 'ADMIN') {
+    ElMessage.warning('协助管理员无权删除超级管理员')
+    return
+  }
   if (!confirm(`确定要删除管理员 ${row.name} 吗？`)) return
   try {
     await deleteAdmin(row.id)

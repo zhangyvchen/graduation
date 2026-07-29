@@ -94,17 +94,19 @@ export function getStatisticsTrend() {
   })
 }
 
-export function getCompanyTypes() {
+export function getCompanyTypes(year) {
   return request({
     url: '/statistics/company-types',
-    method: 'get'
+    method: 'get',
+    params: year ? { year } : {}
   })
 }
 
-export function getMajorRates() {
+export function getMajorRates(year) {
   return request({
     url: '/statistics/major-rates',
-    method: 'get'
+    method: 'get',
+    params: year ? { year } : {}
   })
 }
 
@@ -112,6 +114,21 @@ export function getEmploymentDistribution(year) {
   return request({
     url: '/statistics/employment-distribution',
     method: 'get',
-    params: { year }
+    params: year ? { year } : {}
+  })
+}
+
+export function getStudentYears() {
+  return request({
+    url: '/admin/student/years',
+    method: 'get'
+  })
+}
+
+export function getStatisticsStudents(params) {
+  return request({
+    url: '/statistics/students',
+    method: 'get',
+    params
   })
 }

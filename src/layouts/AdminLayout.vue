@@ -266,6 +266,8 @@ const fetchUserPermissions = async () => {
     const res = await getAdminPermissions(userId)
     if (res.code === 200) {
       userPermissions.value = res.data || []
+      // 将权限存储到sessionStorage，供路由守卫使用
+      sessionStorage.setItem('admin_permissions', JSON.stringify(userPermissions.value))
     }
   } catch (e) {
     console.error('获取权限失败:', e)
